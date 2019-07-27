@@ -49,10 +49,10 @@ B ∘ A refines A ∘ B, we need to construct a quantifier-free expression for
 A ∘ B. In addition to history and prophecy variables in A and B, we have to
 eliminate the variables in the global state after executing A but before
 executing B. If a variable g is difficult to eliminate in this middle state, its
-witness, in general, might depend on both the pre-state and the post-state of A
-o B. Thus, a witness in the code of A (or in the code of B) might not suffice by
-itself. The general solution is to provide one or more history variables in A,
-one or more prophecy variables in B, and separately provide a function that
+witness, in general, might depend on both the pre-state and the post-state of 
+A ∘ B. Thus, a witness in the code of A (or in the code of B) might not suffice 
+by itself. The general solution is to provide one or more history variables in
+A, one or more prophecy variables in B, and separately provide a function that
 looks at the values of these history and prophecy variables to create the
 witness for g in the middle state.
 

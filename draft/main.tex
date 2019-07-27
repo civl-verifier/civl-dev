@@ -1,0 +1,100 @@
+\documentclass[runningheads,orivec]{llncs}
+
+\input{packages}
+\input{macros}
+
+\begin{document}
+
+\title{Efficient Verification-Condition Generation for Atomic Actions}
+
+% \orcidID{0000-1111-2222-3333}
+\author{%
+Soroush Ebadian\inst{1} \and
+Thomas A. Henzinger\inst{1} \and
+Bernhard Kragl\inst{1} \and
+Shaz Qadeer\inst{2}}
+
+\authorrunning{S. Ebadian \and T.A. Henzinger \and B. Kragl \and S. Qadeer}
+
+\institute{%
+IST Austria \and
+Facebook}
+
+\maketitle
+
+\section{Action Language}
+
+\paragraph{Syntax.}
+%
+An \emph{action} is a tuple $(G,I,H,P,O,c)$, where $G$, $I$, $H$, and $P$ are disjoint finite sets of \emph{global}, \emph{input}, \emph{history}, and \emph{prophecy variables}, respectively, $O \subseteq H$ is a set of \emph{output variables}, and $c$ is a command of the form
+%
+\begin{align*}
+  c ::= h := E \mid p =: E \mid \assume\ E \mid \assert\ E \mid c ; c \mid c \choice c,
+\end{align*}
+%
+where $h$ is a history variable, $p$ is a prophecy variable, and $E$ is an expression of appropriate type.
+Let $V = G \cup I \cup H \cup P$ be the set of variables of an action.
+
+\paragraph{Semantics.}
+%
+Let $D$ be a set of values (that includes the Booleans).
+A \emph{state} is either a mapping from $V$ to $D$, or the unique \emph{failure state} $\fail$.
+For a state $s$ and an expression $E$ we denote $s(E)$ the value of $E$ in $s$.
+The semantics $\sem{c}$ of a command $c$ is defined as a binary relation over states as follows:\footnote{$\circ$ denotes relation composition.}
+%
+\begin{align*}
+  \sem{h := E} &= \set{(s,s') \mid s' = s[h \mapsto s(E)]}; \\
+  \sem{p =: E} &= \set{(s,s') \mid s = s'[p \mapsto s'(E)]}; \\
+  \sem{\assume\ E} &= \set{(s,s) \mid s(E) = \true]}; \\
+  \sem{\assert\ E} &= \set{(s,s) \mid s(E) = \true]} \cup \set{(s,\fail) \mid s(E) = \false}; \\
+  \sem{c_1 ; c_2} &= \sem{c_1} \circ (\sem{c_2} \cup \set{(\fail,\fail)}); \\
+  \sem{c_1 \choice c_2} &= \sem{c_1} \cup \sem{c_2}. \\
+\end{align*}
+
+We write $\asem{c}$ for $\sem{c}$ with the pre-state restricted to $G \cup I$ and the post-state restricted to $G \cup O$, i.e., $\asem{c} = \set{(s|_{G \cup I},s'|_{G \cup O}) \mid (s,s') \in \sem{c}}$.
+
+Two actions $(G_1,I_1,H_1,P_1,O_1,c_1)$ and $(G_2,I_2,H_2,P_2,O_2,c_2)$ are \emph{equivalent} if $G_1=G_2$, $I_1=I_2$, $O_1=O_2$, and $\asem{c_1}=\asem{c_2}$.
+
+\paragraph{Transition formula.}
+%
+We are interested in computing logical formulas $\rho(G,I)$ and $\tau(G,I,G',O')$ such that
+\begin{align}
+  s \models \rho    &\iff (s,\fail) \not\in \asem{c}; \\
+  s,s' \models \tau &\iff (s,s') \in \asem{c}. \label{eq:tau}
+\end{align}
+%
+In \eqref{eq:tau} we mean that the values for $G \cup I$ are taken from $s$ and the values for $G' \cup O'$ are taken from $s'$.
+
+\begin{example}
+The following two programs are equivalent and have the transition formula on the right.
+\begin{center}
+\begin{minipage}{3cm}
+\begin{tabbing}
+\textbf{hvar} l \\
+assume $l > 0$ \\
+$x := l$
+\end{tabbing}
+\end{minipage}
+\hspace{1cm}
+\begin{minipage}{3cm}
+\begin{tabbing}
+\textbf{pvar} p \\
+$x := p$ \\
+assume $x > 0$ \\
+$p =: x$
+\end{tabbing}
+\end{minipage}
+\hspace{1cm}
+\begin{minipage}{3cm}
+\begin{tabbing}
+$\rho = true$ \\
+$\tau = x' > 0$
+\end{tabbing}
+\end{minipage}
+\end{center}
+\end{example}
+
+\bibliographystyle{splncs04}
+\bibliography{dblp}
+
+\end{document}
