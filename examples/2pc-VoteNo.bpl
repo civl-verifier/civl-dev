@@ -22,7 +22,7 @@ modifies state;
 // Transition relation of VoteNo
 function tr_VoteNo(xid:Xid, state:GState, state':GState) : bool
 {
-  (forall xx:Xid :: xx != xid ==> state'[xx] == state[xx]) &&
+  state' == state[xid := state'[xid]] &&
   xUndecidedOrAborted(state'[xid]) &&
   xConsistentExtension(state[xid], state'[xid])
 }
