@@ -62,3 +62,25 @@ Overall, two mechanisms need to be invented for witnesses.
 - Annotation on a function definition to indicate that the function must be used
   to create a witness for the middle state of the composition of two atomic
   actions.
+
+## Translating Backward Assignments
+
+Consider the translation of a backward assignment `p =: E` into regular
+"forward" code.
+
+If `E` does not refer to `p` then we can translate it to:
+
+```
+assume p == E
+havoc p
+```
+
+A general translation for `p =: E` when `E` is allowed to refer to `p` is:
+
+```
+// let c be a fresh variable
+assume p == E[p/c]
+havoc p 
+havoc c
+assume c == p
+```
