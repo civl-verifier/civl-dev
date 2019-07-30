@@ -122,3 +122,31 @@ function TypeCheck(A):
       if c is p =: E:
         pset := pset ∪ {p}
 ```
+
+## Transition Relation Computation
+
+```
+function Translate(C):
+  C' := [] // new command sequence without backward assignments
+  
+  foreach c in C forward direction:
+    if c is p =: E:
+      σ := [p ↦ primeGlobalVars(E)]
+      apply σ to all commands in C'
+    else:
+      C' := C' + [c]
+  
+  map := identity  // mapping from G to expressions (initially x ↦ x)
+  C'' := []        // new command sequence without backward and forward assignments
+  
+  foreach c in C backward direction:
+    if c is x := E:
+      σ := [x ↦ E]
+      apply σ to all commands in C''
+      apply σ to all values in map
+    else:
+      C'' := C'' + [c]
+  
+  return And({E | assum E ∈ C''} ∪ {x' = map[x] | x ∈ G})
+  
+```
