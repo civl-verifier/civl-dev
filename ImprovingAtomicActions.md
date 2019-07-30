@@ -113,12 +113,12 @@ function TypeCheck(A):
       if c is x := E:
         if x ∈ H:
           hset := hset ∪ {x}
-        map[c][x] := P(E) ∪ flatten({map[c][h] | h ∈ H(E)})
+        map[c][x] := P(E) ∪ flatten({map[c][x] | x ∈ H(E) ∪ G(E)})
       map[next(c)] := map[c]
     
     foreach c in C backward direction:
       assert P(Expr(c)) ⊆ pset
-      assert flatten({map[c][h] | h ∈ H(E)}) ⊆ pset
+      assert flatten({map[c][x] | x ∈ H(E) ∪ G(E)}) ⊆ pset
       if c is p =: E:
         pset := pset ∪ {p}
 ```
