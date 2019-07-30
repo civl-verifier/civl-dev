@@ -26,13 +26,13 @@ Facebook}
 
 \paragraph{Syntax.}
 %
-An \emph{action} is a tuple $(G,I,H,P,O,c)$, where $G$, $I$, $H$, and $P$ are disjoint finite sets of \emph{global}, \emph{input}, \emph{history}, and \emph{prophecy variables}, respectively, $O \subseteq H$ is a set of \emph{output variables}, and $c$ is a command of the form
+An \emph{action} is a tuple $(G,I,H,P,O,c)$, where $G$, $I$, $H$, and $P$ are disjoint finite sets of \emph{global}, \emph{input}, \emph{history}, and \emph{prophecy variables}, respectively, $O \subseteq H \cup P$ is a set of \emph{output variables}, and $c$ is a command of the form
 %
 \begin{align*}
   c ::= h := E \mid p =: E \mid \assume\ E \mid \assert\ E \mid c ; c \mid c \choice c,
 \end{align*}
 %
-where $h$ is a history variable, $p$ is a prophecy variable, and $E$ is an expression of appropriate type.
+where $h \in H \cup G$, $p \in P$, and $E$ is an expression of appropriate type.
 Let $V = G \cup I \cup H \cup P$ be the set of variables of an action.
 
 \paragraph{Semantics.}

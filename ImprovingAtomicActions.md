@@ -84,3 +84,41 @@ havoc p
 havoc c
 assume c == p
 ```
+
+## Type Checking
+
+We write `H(E)` and `P(E)` for the set of history respectively prophecy variables that occur in expression `E`.
+
+`Expr(c)` is the expression of a command `c`:
+```
+Expr(x := E) = E
+Expr(p =: E) = E
+Expr(assume E) = E
+```
+
+```
+flatten({S1,...,Sn}) = S1 ∪ ... ∪ Sn
+```
+
+```
+function TypeCheck(A):
+  foreach path C in A:
+    map := empty  // mapping from command (line number) and H ∪ G to subset of P
+                  // map[c][x] is the set of prophecy variables x depends on at position c
+    hset := empty // subset of H (defined history variables)
+    pset := empty // subset of P (defined prophecy variables)
+    
+    foreach c in C forward direction:
+      assert H(Expr(c)) ⊆ hset
+      if c is x := E:
+        if x ∈ H:
+          hset := hset ∪ {x}
+        map[c][x] := P(E) ∪ flatten({map[c][h] | h ∈ H(E)})
+      map[next(c)] := map[c]
+    
+    foreach c in C backward direction:
+      assert P(Expr(c)) ⊆ pset
+      assert flatten({map[c][h] | h ∈ H(E)}) ⊆ pset
+      if c is p =: E:
+        pset := pset ∪ {p}
+```
