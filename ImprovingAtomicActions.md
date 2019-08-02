@@ -116,11 +116,19 @@ function TypeCheck(A):
         map[c][x] := P(E) ∪ flatten({map[c][x] | x ∈ H(E) ∪ G(E)})
       map[next(c)] := map[c]
     
+    g_assigned_set := empty // subset of G (assigned global variables)
+
     foreach c in C backward direction:
       assert P(Expr(c)) ⊆ pset
       assert flatten({map[c][x] | x ∈ H(E) ∪ G(E)}) ⊆ pset
       if c is p =: E:
+        assert H(E) is empty
+        assert G(E) ∩ g_assigned_set is empty // No conflicting assignement after a backward assignment
         pset := pset ∪ {p}
+      if c is x := E and x ∈ G:
+        g_assigned_set := g_assigned_set ∪ {x}
+
+      assert (O ∩ H) ⊆ hset
 ```
 
 ## Transition Relation Computation
@@ -147,6 +155,6 @@ function Translate(C):
     else:
       C'' := C'' + [c]
   
-  return And({E | assum E ∈ C''} ∪ {x' = map[x] | x ∈ G})
+  return And({E | assume E ∈ C''} ∪ {x' = map[x] | x ∈ G ∪ (O ∩ H)})
   
 ```
