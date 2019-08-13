@@ -115,7 +115,8 @@ function TypeCheck(A):
           hset := hset ∪ {x}
         map[c][x] := P(E) ∪ flatten({map[c][x] | x ∈ H(E) ∪ G(E)})
       map[next(c)] := map[c]
-    
+
+    assert (O ∩ H) ⊆ hset
     g_assigned_set := empty // subset of G (assigned global variables)
 
     foreach c in C backward direction:
@@ -128,7 +129,6 @@ function TypeCheck(A):
       if c is x := E and x ∈ G:
         g_assigned_set := g_assigned_set ∪ {x}
 
-      assert (O ∩ H) ⊆ hset
 ```
 
 ## Transition Relation Computation
@@ -165,30 +165,28 @@ We allow prophecy and history variables to be used both in forward and backward 
 ## Creating Dependency Graph
 ```
 function DependencyGraph(C):
-    DG = empty graph
-    add lonely node PreState to DG
+    DG = C ∪ {PreState, PostState}
 
-    σ = {x ↦ PreState ∀ x ∈ G ∪ I}
+    σ = {x ↦ PreState | x ∈ G ∪ I}
     foreach c in C in forward direction:
-        add node c to DG
-        foreach v ∈ E \ P(Expr(c)):
-            assert v ∈ σ
-            add directed edge (σ(v) → c) with label v to DG
+        foreach x ∈ V(Expr(c)) \ P:
+            assert x ∈ σ
+            add directed edge (σ(x) → c) to DG
         if c is x := E:
             σ(x) = c
 
-    σ' = {}
+    σ' = {x ↦ PostState | x ∈ O ∩ P}
     foreach c in C in backward direction:
-        foreach v ∈ P(Expr(c)):
-            assert v ∈ σ'
-            add directed edge (σ'(v) → c) with label v to DG
+        foreach x ∈ P(Expr(c)):
+            assert x ∈ σ'
+            add directed edge (σ'(x) → c) to DG
         if c is p =: E:
             σ'(p) = c
 
     return DG, σ
 
 inline function DefinedNodes(σ):
-    return {σ(x) for x in G} ∪ {PreState}
+    return {σ(x) | x ∈ G} ∪ {PreState, PostState}
 ```
 
 ## Type Checking
@@ -205,30 +203,27 @@ function ComputeTransitionRelation(C):
     assume TypeChecker(C) does not fail
 
     DG, σ = DependencyGraph(C)
-    pi = Topological order of DG \ DefinedNodes(σ)
 
-    sub = {(PreState, x) ↦ old(x), ∀ x in G} ∪
-        {(σ(c), x) ↦ x, ∀ x ∈ G}
+    sub = {PreState ↦ {x ↦ old(x) | x ∈ G ∪ I}} ∪
+          {PostState ↦ {x ↦ x | x ∈ O ∩ P}} ∪
+          {σ(x) ↦ {x ↦ x} | x ∈ G ∧ σ(x) ≠ PreState}
 
     // Substitute each variable based on sub map
     inline function substitutedExpr(c):
-        E = Expr(c)
-        foreach (c', c) in InEdges(c):
-            v = label(c', c)
-            E = E[v / sub(c', v)]
-        return E
+        return apply ⋃{sub(c') | c' → c ∈ DG} to Expr(c)
 
     transExprs = []
+    π = Topological order of DG \ DefinedNodes(σ)
 
     foreach c in π:
         newE = substitutedExpr(c)
         if c is assume or assert:
             transExprs.add(newE)
-        else if c is v := E or v =: E:
-            sub(c, v) = newE
+        else if c is x := E or x =: E:
+            sub[c] := {x ↦ newE}
 
-    foreach x in G:
-        transExprs.add(x = substitutedExpr(σ(c)))
+    foreach x in G ∪ (O ∩ dom(σ)):
+        transExprs.add(x = substitutedExpr(σ(x)))
 
     return And(transExprs)
 ```
