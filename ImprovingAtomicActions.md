@@ -158,3 +158,77 @@ function Translate(C):
   return And({E | assume E ∈ C''} ∪ {x' = map[x] | x ∈ G ∪ (O ∩ H)})
   
 ```
+
+We allow prophecy and history variables to be used both in forward and backward assignments.
+
+
+## Creating Dependency Graph
+```
+function DependencyGraph(C):
+    DG = empty graph
+    add lonely node PreState to DG
+
+    σ = {x ↦ PreState ∀ x ∈ G ∪ I}
+    foreach c in C in forward direction:
+        add node c to DG
+        foreach v ∈ E \ P(Expr(c)):
+            assert v ∈ σ
+            add directed edge (σ(v) → c) with label v to DG
+        if c is x := E:
+            σ(x) = c
+
+    σ' = {}
+    foreach c in C in backward direction:
+        foreach v ∈ P(Expr(c)):
+            assert v ∈ σ'
+            add directed edge (σ'(v) → c) with label v to DG
+        if c is p =: E:
+            σ'(p) = c
+
+    return DG, σ
+
+inline function DefinedNodes(σ):
+    return {σ(x) for x in G} ∪ {PreState}
+```
+
+## Type Checking
+```
+function TypeChecker(C):
+    DG, σ = DependencyGraph(C)
+    DG' = DG \ DefinedNodes(σ)
+    assert DG' is a DAG (Directed Acyclic Graph)
+```
+
+## Transition Relation
+```
+function ComputeTransitionRelation(C):
+    assume TypeChecker(C) does not fail
+
+    DG, σ = DependencyGraph(C)
+    pi = Topological order of DG \ DefinedNodes(σ)
+
+    sub = {(PreState, x) ↦ old(x), ∀ x in G} ∪
+        {(σ(c), x) ↦ x, ∀ x ∈ G}
+
+    // Substitute each variable based on sub map
+    inline function substitutedExpr(c):
+        E = Expr(c)
+        foreach (c', c) in InEdges(c):
+            v = label(c', c)
+            E = E[v / sub(c', v)]
+        return E
+
+    transExprs = []
+
+    foreach c in π:
+        newE = substitutedExpr(c)
+        if c is assume or assert:
+            transExprs.add(newE)
+        else if c is v := E or v =: E:
+            sub(c, v) = newE
+
+    foreach x in G:
+        transExprs.add(x = substitutedExpr(σ(c)))
+
+    return And(transExprs)
+```
