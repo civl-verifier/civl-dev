@@ -249,3 +249,58 @@ function ComputeTransitionRelation(C):
 
     return And(transExprs)
 ```
+
+## Draft 3
+
+We allow each variable to appear both in forward and backward assignments.
+
+### Transition Relation Computation
+```
+function ComputeTransitionRelation(C):
+    cnt = defaultMap(0)
+    σ = defaultMap(x ↦ Var(x, 0))
+
+    // Rewrite program using immutable intermediate variables
+    C' = []
+    for c in C:
+        if c is x assigned to E:
+            σ1 = σ
+            σ[x] = Var(x, ++cnt[x])
+            σ2 = σ
+
+            if c is x := E:
+                C'.add(σ2[x] = σ1(E))
+            else if c is x =: E:
+                C'.add(σ1[x] = σ2(E))
+        else
+            C' += σ(E)
+    C = C'
+
+    // Pre-state and Post-state values
+    IS = {Var(x, 0) | x ∈ G ∪ I} ∪
+         {σ[x] | x ∈ G ∪ O}
+
+    // Eliminate intermediate variables
+    done = false
+    sub = {x ↦ x | x ∈ IS}
+    while (not done):
+        done = true
+        C' = []
+        for c in C:
+            if c is x assigned to E ∧
+                    V(E) ⊆ IS ∧
+                    x ∉ sub:
+                sub[x] = E
+                done = false
+            else
+                C'.add(c)
+
+        apply sub to C'
+        C = C'
+
+    // Intermediate variables could not be eliminated
+    assert V(C) ⊈ IS
+
+    return ⋀ C[{Var(x, 0) ↦ old(x) | x ∈ G ∪ I} ∪
+               {σ(x) ↦ x | x ∈ G ∪ O}]
+```
