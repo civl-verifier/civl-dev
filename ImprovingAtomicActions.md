@@ -85,7 +85,7 @@ havoc c
 assume c == p
 ```
 
-## Type Checking
+## Notation
 
 We write `H(E)` and `P(E)` for the set of history respectively prophecy variables that occur in expression `E`.
 
@@ -99,6 +99,10 @@ Expr(assume E) = E
 ```
 flatten({S1,...,Sn}) = S1 ∪ ... ∪ Sn
 ```
+
+## Draft 1
+
+### Type Checking
 
 ```
 function TypeCheck(A):
@@ -117,18 +121,35 @@ function TypeCheck(A):
       map[next(c)] := map[c]
 
     assert (O ∩ H) ⊆ hset
-    g_assigned_set := empty // subset of G (assigned global variables)
+    g_assigned_set := empty // ★ subset of G (assigned global variables)
 
     foreach c in C backward direction:
       assert P(Expr(c)) ⊆ pset
       assert flatten({map[c][x] | x ∈ H(E) ∪ G(E)}) ⊆ pset
       if c is p =: E:
-        assert H(E) is empty
-        assert G(E) ∩ g_assigned_set is empty // No conflicting assignement after a backward assignment
+        assert H(E) is empty                   // ★
+        assert G(E) ∩ g_assigned_set is empty  // ★
         pset := pset ∪ {p}
-      if c is x := E and x ∈ G:
-        g_assigned_set := g_assigned_set ∪ {x}
+      if c is x := E and x ∈ G:                // ★
+        g_assigned_set := g_assigned_set ∪ {x} // ★
+```
 
+The lines marked with ★ were added retrospectively, because, e.g., for the
+following action the transition relation computation would incorrectly output 
+`x = 3`. The correct transition relation is `x = 4`.
+
+```
+l := 1
+x := p
+l := l + 1
+p =: l + 2
+```
+
+After first pass:
+```
+l := 1
+x := l + 2
+l := l + 1
 ```
 
 ## Transition Relation Computation
@@ -159,10 +180,11 @@ function Translate(C):
   
 ```
 
+## Draft 2
+
 We allow prophecy and history variables to be used both in forward and backward assignments.
 
-
-## Creating Dependency Graph
+### Creating Dependency Graph
 ```
 function DependencyGraph(C):
     DG = C ∪ {PreState, PostState}
@@ -189,7 +211,7 @@ inline function DefinedNodes(σ):
     return {σ(x) | x ∈ G} ∪ {PreState, PostState}
 ```
 
-## Type Checking
+### Type Checking
 ```
 function TypeChecker(C):
     DG, σ = DependencyGraph(C)
@@ -197,7 +219,7 @@ function TypeChecker(C):
     assert DG' is a DAG (Directed Acyclic Graph)
 ```
 
-## Transition Relation
+### Transition Relation Computation
 ```
 function ComputeTransitionRelation(C):
     assume TypeChecker(C) does not fail
