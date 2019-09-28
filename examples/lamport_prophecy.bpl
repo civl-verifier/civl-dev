@@ -30,6 +30,13 @@ function {:inline} Invariant(i: int, p: int, c: int, x: [int]int) : bool {
   (p == c || x[c] == 1)
 }
 
+function
+{:witness "y atomic_update_y_abs atomic_update_y_abs 2"}
+witness (y:[int]int, y':[int]int, first_i: int, second_i:int) : [int]int
+{
+  y[second_i := y'[second_i]]
+}
+
 // #############################################################################
 
 // Main procedures that spawns all processes
@@ -54,10 +61,8 @@ requires {:layer 1} IsProcId(p) && IsProcId(c) && p == c;
 procedure {:layer 3}{:atomic} atomic_main_abs()
 modifies y;
 {
-  var y': [int]int;
-  assert IsProcId(c);
-  assume y'[(c+1) mod N] == 1;
-  y := y';
+  havoc y;
+  assume y[(c+1) mod N] == 1;
 }
 
 // #############################################################################
@@ -87,11 +92,11 @@ modifies p;
 procedure {:layer 2}{:left} atomic_update_y_abs(i: int)
 modifies y;
 {
-  var v: int;
   if (i == (c+1) mod N) { 
 	  y[i] := 1; 
   } else {
-    y[i] := v;
+    havoc y;
+    assume y == old(y)[i := y[i]];
   }
 }
 
