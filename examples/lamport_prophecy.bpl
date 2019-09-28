@@ -42,6 +42,7 @@ witness (y:[int]int, y':[int]int, first_i: int, second_i:int) : [int]int
 // Main procedures that spawns all processes
 procedure {:layer 2}{:yields}{:refines "atomic_main_abs"} Main()
 requires {:layer 1} IsProcId(p) && IsProcId(c) && p == c;
+requires {:layer 2} IsProcId(c);
 {
   var i: int;
   i := 0;
