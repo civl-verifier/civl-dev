@@ -1,0 +1,8 @@
+digraph g {
+rankdir=LR;
+RM[shape=circle, style=filled, fillcolor=gray];
+LM[shape=doublecircle];
+RM -> LM [label=Y];
+LM -> LM [label="Y B R L A P"];
+RM -> RM [label=P];
+}
