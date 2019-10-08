@@ -1,4 +1,7 @@
 digraph g {
+label="BSpec";
+labelloc=top;
+fontsize=20;
 rankdir=LR;
 LM[shape=circle, style=filled, fillcolor=gray];
 RM[shape=doublecircle];

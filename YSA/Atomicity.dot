@@ -1,12 +1,12 @@
 digraph g {
-label="CSpec";
+label="AtomicitySpec";
 labelloc=top;
 fontsize=20;
 rankdir=LR;
 RM[shape=doublecircle, style=filled, fillcolor=gray];
 LM[shape=doublecircle, style=filled, fillcolor=gray];
-RM -> RM [label="B,R,Y,P"];
-RM -> LM [label="B,R,L,A"];
+RM -> RM [label="B,R,Y,P,I"];
+RM -> LM [label="L,A"];
 LM -> RM [label=Y];
-LM -> LM [label="B,L,P"];
+LM -> LM [label="B,L,P,I"];
 }

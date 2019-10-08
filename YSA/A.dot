@@ -1,4 +1,7 @@
 digraph g {
+label="ASpec";
+labelloc=top;
+fontsize=20;
 rankdir=LR;
 RM[shape=circle, style=filled, fillcolor=gray];
 LM[shape=doublecircle];
