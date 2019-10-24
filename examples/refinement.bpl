@@ -6,11 +6,11 @@ modifies x;
 
 procedure {:atomic} {:layer 1,2} POS ()
 modifies x;
-{ var l:int; assume l > 0; x := l; }
+{ havoc x; assume x > 0; }
 
 procedure {:atomic} {:layer 1,2} STUPID_POS ()
 modifies x;
-{ var l:int; assume l >= 0; x := l+1; }
+{ havoc x; assume x >= 2; x := x - 1; }
 
 procedure {:yields} {:layer 0} {:refines "SET_X"} set_x (v:int);
 procedure {:yields} {:layer 0} {:refines "POS"} pos ();
