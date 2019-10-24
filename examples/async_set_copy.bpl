@@ -120,6 +120,7 @@ requires {:layer 6} n <= N;
 procedure {:atomic} {:layer 7, 10} A_Write(n: int)
 modifies copy, latest;
 {
+  assume !is_running[copy_thread] || n <= requested_copy_bound;
   if (n <= copy_bound) {
     copy := copy[n:=true];
   }
@@ -234,8 +235,7 @@ requires {:layer 6} is_running[tid];
 // all previous ones), so the summary is just the last iteration.
 //
 // The above reasoning relies on the fact that there's at least one iteration of the
-// loop. I guess CIVL must infer this from the fact that creating_copy_bound <
-// requested_copy_bound on entry.
+// loop.
 procedure {:atomic} {:layer 7} A_Copy({:linear "tid"} tid: Tid)
 modifies copy, copy_bound, is_running;
 {
