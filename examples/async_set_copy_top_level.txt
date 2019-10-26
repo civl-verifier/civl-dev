@@ -36,6 +36,7 @@ action Main() {
 }
 
 action Write(n: int) {
+    assert n <= N;
     assume !is_running[copy_thread] || n <= requested_copy_bound;
     if (n <= copy_bound) {
         copy += n;
@@ -49,3 +50,9 @@ action Copy() {
     copy_bound := requested_copy_bound;
     is_running[copy_thread] := false;
 }
+
+Inductive invariant:
+copy \subseteq latest \subseteq [1..N]
+copy_bound <= requested_copy_bound <= N
+is_running[copy_thread] ==> latest \subseteq [1..requested_copy_bound]
+!is_running[copy_thread] ==> copy = latest \cap [1..requested_copy_bound] && copy_bound == requested_copy_bound
