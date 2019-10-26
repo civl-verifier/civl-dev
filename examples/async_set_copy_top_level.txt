@@ -54,7 +54,7 @@ action Main'() {
     assert Inv;
     havoc globals;
     assume Inv;
-    assume !is_running[copy_thread];
+    assume old(is_running[copy_thread]) || !is_running[copy_thread];
 }
 
 action InvMain() {
@@ -68,7 +68,7 @@ action InvMain() {
         async Main();
     }
     do 
-    if (is_running[copy_thread]) {
+    if (!old(is_running[copy_thread]) && is_running[copy_thread]) {
         async Copy();
     }
     while (*)
@@ -84,7 +84,7 @@ action Main*() {
     if (*) {
         async Main();
     }
-    if (is_running[copy_thread]) {
+    if (!old(is_running[copy_thread]) && is_running[copy_thread]) {
         async Copy();
     }
 }
@@ -93,7 +93,7 @@ action Write*(n: int) {
     assert Inv;
     havoc globals;
     assume Inv;
-    if (is_running[copy_thread]) {
+    if (!old(is_running[copy_thread]) && is_running[copy_thread]) {
         async Copy();
     }
 }
@@ -102,7 +102,7 @@ action Copy*() {
     assert Inv;
     havoc globals;
     assume Inv;
-    if (is_running[copy_thread]) {
+    if (!old(is_running[copy_thread]) && is_running[copy_thread]) {
         async Copy();
     }
 }
