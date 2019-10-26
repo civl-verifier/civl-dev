@@ -14,10 +14,9 @@ Precondition of Main:
     requested_copy_bound == 0 && 
     copy_bound == 0
 
-Postcondition of Main: 
-    requested_copy_bound != 0 ==>
-        copy_bound == requested_copy_bound &&
-        copy == {n : int :: n in latest && n <= requested_copy_bound}
+Postcondition of Main:
+    copy_bound == requested_copy_bound &&
+    copy == {n : int :: n in latest && n <= requested_copy_bound}
 
 action Main() {
     async Write(N+1);
@@ -36,7 +35,7 @@ action Main() {
 }
 
 action Write(n: int) {
-    assert n <= N;
+    assume n <= N;
     assume !is_running[copy_thread] || n <= requested_copy_bound;
     if (n <= copy_bound) {
         copy += n;
@@ -45,13 +44,70 @@ action Write(n: int) {
 }
 
 action Copy() {
-    assert is_running[copy_thread] && copy_bound <= requested_copy_bound;
+    assume is_running[copy_thread] && copy_bound <= requested_copy_bound;
     copy := latest;
     copy_bound := requested_copy_bound;
     is_running[copy_thread] := false;
 }
 
-Inductive invariant:
+action Main'() {
+    assert Inv;
+    havoc globals;
+    assume Inv;
+    assume !is_running[copy_thread];
+}
+
+action InvMain() {
+    assert Inv;
+    havoc globals;
+    assume Inv;
+    while (*) {
+        async Write(*);
+    }
+    if (*) {
+        async Main();
+    }
+    do 
+    if (is_running[copy_thread]) {
+        async Copy();
+    }
+    while (*)
+}
+
+action Main*() {
+    assert Inv;
+    havoc globals;
+    assume Inv;
+    if (*) {
+        async Write(*);
+    }
+    if (*) {
+        async Main();
+    }
+    if (is_running[copy_thread]) {
+        async Copy();
+    }
+}
+
+action Write*(n: int) {
+    assert Inv;
+    havoc globals;
+    assume Inv;
+    if (is_running[copy_thread]) {
+        async Copy();
+    }
+}
+
+action Copy*() {
+    assert Inv;
+    havoc globals;
+    assume Inv;
+    if (is_running[copy_thread]) {
+        async Copy();
+    }
+}
+
+Inductive invariant Inv:
 copy \subseteq latest \subseteq [1..N]
 copy_bound <= requested_copy_bound <= N
 is_running[copy_thread] ==> latest \subseteq [1..requested_copy_bound]
