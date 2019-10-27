@@ -9,8 +9,8 @@ var N: int;
 Precondition of Main: 
     N == 0 &&
     !is_running[copy_thread] && 
-    latest = {} &&
-    copy = {} && 
+    latest == {} &&
+    copy == {} && 
     requested_copy_bound == 0 && 
     copy_bound == 0
 
@@ -108,7 +108,9 @@ action Copy*() {
 }
 
 Inductive invariant Inv:
-copy \subseteq latest \subseteq [1..N]
-copy_bound <= requested_copy_bound <= N
-is_running[copy_thread] ==> latest \subseteq [1..requested_copy_bound]
-!is_running[copy_thread] ==> copy = latest \cap [1..requested_copy_bound] && copy_bound == requested_copy_bound
+    copy ⊆ latest ⊆ [1..N]
+    copy_bound <= requested_copy_bound <= N
+    is_running[copy_thread] ==> latest ⊆ [1..requested_copy_bound]
+    !is_running[copy_thread] ==>
+        copy == latest ∩ [1..requested_copy_bound] &&
+        copy_bound == requested_copy_bound
