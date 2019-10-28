@@ -18,24 +18,27 @@ Postcondition of Main:
     copy_bound == requested_copy_bound &&
     copy == {n : int :: n in latest && n <= requested_copy_bound}
 
-action Main() {
+procedure Main() {
+    while (*) {
+        call MainLoopBody();
+    }
+}
+
+action MainLoopBody() {
     async Write(N+1);
     if (*) {
         requested_copy_bound := N;
         if (!is_running[copy_thread]) {
             havoc copy_thread; 
             assume is_running[copy_thread];
-            async Copy();
+            async Copy(copy_thread);
         }
     }
     N := N + 1;
-    if (*) {
-        async Main();
-    }
 }
 
 action Write(n: int) {
-    assume n <= N;
+    assert n <= N;
     assume !is_running[copy_thread] || n <= requested_copy_bound;
     if (n <= copy_bound) {
         copy += n;
@@ -43,69 +46,14 @@ action Write(n: int) {
     latest += n;
 }
 
-action Copy() {
-    assume is_running[copy_thread] && copy_bound <= requested_copy_bound;
+action Copy(t: Tid) {
+    assert t == copy_thread && is_running[copy_thread];
     copy := latest;
     copy_bound := requested_copy_bound;
     is_running[copy_thread] := false;
 }
 
-action Main'() {
-    assert Inv;
-    havoc globals;
-    assume Inv;
-    assume old(is_running[copy_thread]) || !is_running[copy_thread];
-}
-
-action InvMain() {
-    assert Inv;
-    havoc globals;
-    assume Inv;
-    while (*) {
-        async Write(*);
-    }
-    if (*) {
-        async Main();
-    }
-    do 
-    if (!old(is_running[copy_thread]) && is_running[copy_thread]) {
-        async Copy();
-    }
-    while (*)
-}
-
-action Main*() {
-    assert Inv;
-    havoc globals;
-    assume Inv;
-    if (*) {
-        async Write(*);
-    }
-    if (*) {
-        async Main();
-    }
-    if (!old(is_running[copy_thread]) && is_running[copy_thread]) {
-        async Copy();
-    }
-}
-
-action Write*(n: int) {
-    assert Inv;
-    havoc globals;
-    assume Inv;
-    if (!old(is_running[copy_thread]) && is_running[copy_thread]) {
-        async Copy();
-    }
-}
-
-action Copy*() {
-    assert Inv;
-    havoc globals;
-    assume Inv;
-    if (!old(is_running[copy_thread]) && is_running[copy_thread]) {
-        async Copy();
-    }
-}
+/// Abstraction
 
 Inductive invariant Inv:
     copy ⊆ latest ⊆ [1..N]
@@ -114,3 +62,73 @@ Inductive invariant Inv:
     !is_running[copy_thread] ==>
         copy == latest ∩ [1..requested_copy_bound] &&
         copy_bound == requested_copy_bound
+
+action MainLoopBodyAbs_() {
+    assert Inv;
+    havoc globals;
+    assume Inv;
+    async Write(*);
+    if (!old(is_running[copy_thread]) && is_running[copy_thread]) {
+        async Copy(*);
+    }
+}
+
+action WriteAbs_(n: int) {
+    assert Inv;
+    havoc globals;
+    assume Inv;
+}
+
+action CopyAbs(t: Tid) {
+    assert Inv;
+    havoc globals;
+    assume Inv;
+}
+
+action MainLoopBodyAbs() {
+    assert Inv;
+    havoc globals;
+    assume Inv;
+    async Write(*);
+    if (!old(is_running[copy_thread]) && is_running[copy_thread]) {
+        async Copy(*);
+    }
+}
+
+action WriteAbs(n: int) {
+    assert Inv;
+    havoc globals;
+    assume Inv;
+    if (!old(is_running[copy_thread]) && is_running[copy_thread]) {
+        async Copy(*);
+    }
+}
+
+action CopyAbs(t: Tid) {
+    assert Inv;
+    havoc globals;
+    assume Inv;
+    if (!old(is_running[copy_thread]) && is_running[copy_thread]) {
+        async Copy(*);
+    }
+}
+
+/// Inlining using inductive sequentialization
+action MainLoopBody'() {
+    assert Inv;
+    havoc globals;
+    assume Inv;
+    assume old(is_running[copy_thread]) || !is_running[copy_thread];
+}
+
+action InvMainLoopBody() {
+    assert Inv;
+    havoc globals;
+    assume Inv;
+    while (*) {
+        async Write(*);
+    }
+    if (!old(is_running[copy_thread]) && is_running[copy_thread]) {
+        async Copy();
+    }
+}
