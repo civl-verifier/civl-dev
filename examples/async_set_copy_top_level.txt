@@ -73,6 +73,7 @@ action MainLoopBodyAbs() {
     assert Inv;
     havoc globals;
     assume Inv;
+    async WriteAbs(*);
     if (!old(is_running[copy_thread]) && is_running[copy_thread]) {
         async CopyAbs(*);
     }
