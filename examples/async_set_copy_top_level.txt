@@ -18,6 +18,15 @@ Postcondition of Main:
     copy_bound == requested_copy_bound &&
     copy == {n : int :: n in latest && n <= requested_copy_bound}
 
+Inductive invariant Inv:
+    copy ⊆ latest ⊆ [1..N]
+    copy_bound <= requested_copy_bound <= N
+    is_running[copy_thread] ==> latest ⊆ [1..requested_copy_bound]
+    !is_running[copy_thread] ==>
+        copy == latest ∩ [1..requested_copy_bound] &&
+        copy_bound == requested_copy_bound
+
+/// Original program
 procedure Main() {
     while (*) {
         call MainLoopBody();
@@ -38,7 +47,7 @@ action MainLoopBody() {
 }
 
 action Write(n: int) {
-    assert n <= N;
+    yield n <= N;
     assume !is_running[copy_thread] || n <= requested_copy_bound;
     if (n <= copy_bound) {
         copy += n;
@@ -47,88 +56,69 @@ action Write(n: int) {
 }
 
 action Copy(t: Tid) {
-    assert t == copy_thread && is_running[copy_thread];
+    yield t == copy_thread && is_running[copy_thread];
     copy := latest;
     copy_bound := requested_copy_bound;
     is_running[copy_thread] := false;
 }
 
-/// Abstraction
-
-Inductive invariant Inv:
-    copy ⊆ latest ⊆ [1..N]
-    copy_bound <= requested_copy_bound <= N
-    is_running[copy_thread] ==> latest ⊆ [1..requested_copy_bound]
-    !is_running[copy_thread] ==>
-        copy == latest ∩ [1..requested_copy_bound] &&
-        copy_bound == requested_copy_bound
-
-action MainLoopBodyAbs_() {
-    assert Inv;
-    havoc globals;
-    assume Inv;
-    async Write(*);
-    if (!old(is_running[copy_thread]) && is_running[copy_thread]) {
-        async Copy(*);
+/// Abstract program
+procedure Main() {
+    while (*) {
+        call MainLoopBodyAbs();
     }
-}
-
-action WriteAbs_(n: int) {
-    assert Inv;
-    havoc globals;
-    assume Inv;
-}
-
-action CopyAbs(t: Tid) {
-    assert Inv;
-    havoc globals;
-    assume Inv;
 }
 
 action MainLoopBodyAbs() {
     assert Inv;
     havoc globals;
     assume Inv;
-    async Write(*);
     if (!old(is_running[copy_thread]) && is_running[copy_thread]) {
-        async Copy(*);
+        async CopyAbs(*);
     }
 }
 
+// left mover
 action WriteAbs(n: int) {
     assert Inv;
     havoc globals;
     assume Inv;
     if (!old(is_running[copy_thread]) && is_running[copy_thread]) {
-        async Copy(*);
+        async CopyAbs(*);
     }
 }
 
+// left mover
 action CopyAbs(t: Tid) {
     assert Inv;
     havoc globals;
     assume Inv;
     if (!old(is_running[copy_thread]) && is_running[copy_thread]) {
-        async Copy(*);
+        async CopyAbs(*);
     }
 }
 
-/// Inlining using inductive sequentialization
-action MainLoopBody'() {
+/// Inductive sequentialization
+action MainLoopBodyAbsInv() {
+    assert !is_running[copy_thread];
     assert Inv;
     havoc globals;
     assume Inv;
-    assume old(is_running[copy_thread]) || !is_running[copy_thread];
-}
-
-action InvMainLoopBody() {
-    assert Inv;
-    havoc globals;
-    assume Inv;
-    while (*) {
+    if (*) {
         async Write(*);
     }
-    if (!old(is_running[copy_thread]) && is_running[copy_thread]) {
-        async Copy();
+    while (*) {
+        async CopyAbs(*);
     }
+    if (is_running[copy_thread]) {
+        async CopyAbs(*);
+    }
+}
+
+action MainLoopBodyAbs'() {
+    assert !is_running[copy_thread];
+    assert Inv;
+    havoc globals;
+    assume Inv;
+    assume !is_running[copy_thread]);
 }
