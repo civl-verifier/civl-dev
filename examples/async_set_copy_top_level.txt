@@ -109,10 +109,7 @@ action MainLoopBodyAbsInv() {
     havoc globals;
     assume Inv;
     if (*) {
-        async Write(*);
-    }
-    while (*) {
-        async CopyAbs(*);
+        async WriteAbs(*);
     }
     if (is_running[copy_thread]) {
         async CopyAbs(*);
