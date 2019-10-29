@@ -5,6 +5,7 @@ var copy: Set<int>;
 var requested_copy_bound: int;
 var copy_bound: int;
 var N: int;
+linear var tids: Set<Tid>;
 
 Precondition of Main: 
     N == 0 &&
@@ -12,13 +13,15 @@ Precondition of Main:
     latest == {} &&
     copy == {} && 
     requested_copy_bound == 0 && 
-    copy_bound == 0
+    copy_bound == 0 &&
+    (forall tid in tids. is_running[tid]) 
 
 Postcondition of Main:
     copy_bound == requested_copy_bound &&
     copy == {n : int :: n in latest && n <= requested_copy_bound}
 
 Inductive invariant Inv:
+    (forall t in tids. is_running[t]) 
     copy ⊆ latest ⊆ [1..N]
     copy_bound <= requested_copy_bound <= N
     is_running[copy_thread] ==> latest ⊆ [1..requested_copy_bound]
@@ -38,9 +41,9 @@ action MainLoopBody() {
     if (*) {
         requested_copy_bound := N;
         if (!is_running[copy_thread]) {
-            havoc copy_thread; 
-            assume is_running[copy_thread];
-            async Copy(copy_thread);
+            remove t from tids;
+            copy_thread := t;
+            async Copy(t);
         }
     }
     N := N + 1;
@@ -55,11 +58,11 @@ action Write(n: int) {
     latest += n;
 }
 
-action Copy(t: Tid) {
-    yield t == copy_thread && is_running[copy_thread];
+action Copy(linear t: Tid) {
+    yield t == copy_thread && is_running[t];
     copy := latest;
     copy_bound := requested_copy_bound;
-    is_running[copy_thread] := false;
+    is_running[t] := false;
 }
 
 /// Abstract program
