@@ -109,31 +109,28 @@ modifies unallocated;
   unallocated[tid] := false;
 }
 
+// All unallocated are running
+function UnallocatedRunning(unallocated, is_running: [Tid]bool): bool
+{ (forall utid : Tid :: unallocated[utid] ==> is_running[utid]) }
+
 // Models the large atomic step in the body of main. In the actual implementation,
 // this atomic step asynchronously calls Write and potentially Copy. I don't know
 // how to express this in CIVL because atomic procedures can't call other
 // procedures. As a result, this doesn't actually check that the preconditions
 // for Write and Copy hold at the call sites.
-procedure {:yields} {:layer 0} {:refines "A_MainLoopBodyLow"} MainLoopBodyLow()
-  returns (spawn_copy: bool, {:linear "tid"} copy_tid: Tid, to_write: int);
-procedure {:atomic} {:layer 1, 5} A_MainLoopBodyLow()
-  returns (spawn_copy: bool, {:linear "tid"} copy_tid: Tid, to_write: int)
+procedure {:yields} {:layer 0} {:refines "A_MainLoopBodyLow"} MainLoopBodyLow({:linear "tid"} copy_tid: Tid)
+  returns (spawn_copy: bool, to_write: int);
+procedure {:atomic} {:layer 1, 5} A_MainLoopBodyLow({:linear "tid"} copy_tid: Tid)
+  returns (spawn_copy: bool, to_write: int)
 modifies requested_copy_bound, is_running, copy_thread, N, unallocated;
 {
   assert requested_copy_bound <= N;
   spawn_copy := false;
 
-  // Allocate a thread that may be used for Copy. I think that this needs to
-  // be done regardless of whether or not spawn_copy is set to true in order
-  // to satisfy the linearity constraint on copy_tid.
-  assume unallocated[copy_tid];
-  unallocated[copy_tid] := false;
-
   if (*) {
     requested_copy_bound := N;
     if (!is_running[copy_thread]) {
        copy_thread := copy_tid;
-       assume is_running[copy_thread];
        spawn_copy := true;
     }
   }
@@ -146,38 +143,41 @@ modifies requested_copy_bound, is_running, copy_thread, N, unallocated;
 // invariant. I don't think there's a way to state directly that an atomic action refines
 // another atomic action, so I added this yielding procedure MainLoopBody which just calls
 // MainLoopBodyLow and refines A_MainLoopBody.
-procedure {:yields} {:layer 5} {:refines "A_MainLoopBody"} MainLoopBody({:linear "tid"} tid: Tid)
-  returns (spawn_copy: bool, {:linear "tid"} copy_tid: Tid, to_write: int)
+procedure {:yields} {:layer 5} {:refines "A_MainLoopBody"} MainLoopBody({:linear "tid"} tid: Tid, {:linear "tid"} copy_tid: Tid)
+  returns (spawn_copy: bool, to_write: int)
 requires {:layer 5} tid == main_tid;
 requires {:layer 5} requested_copy_bound <= N;
+requires {:layer 5} is_running[copy_tid];
+requires {:layer 5} UnallocatedRunning(unallocated, is_running);
 ensures {:layer 5} requested_copy_bound <= N;
 ensures {:layer 5} spawn_copy ==> copy_tid == copy_thread;
-ensures {:layer 5} spawn_copy ==> is_running[copy_tid];
-ensures {:layer 5} to_write <= N;  
+ensures {:layer 5} UnallocatedRunning(unallocated, is_running);
+ensures {:layer 5} to_write <= N;
+ensures {:layer 5} is_running[copy_tid];
 {
   yield;
   assert {:layer 5} requested_copy_bound <= N;
+  assert {:layer 5} is_running[copy_tid];
+  assert {:layer 5} UnallocatedRunning(unallocated, is_running);
 
-  call spawn_copy, copy_tid, to_write := MainLoopBodyLow();
+  call spawn_copy, to_write := MainLoopBodyLow(copy_tid);
 
   yield;
   assert {:layer 5} requested_copy_bound <= N;
   assert {:layer 5} spawn_copy ==> copy_tid == copy_thread;
-  assert {:layer 5} spawn_copy ==> is_running[copy_tid];
-  assert {:layer 5} to_write <= N; 
+  assert {:layer 5} to_write <= N;
+  assert {:layer 5} UnallocatedRunning(unallocated, is_running);
+  assert {:layer 5} is_running[copy_tid];
 }
 
-procedure {:atomic} {:layer 6} A_MainLoopBody({:linear "tid"} tid: Tid)
-  returns (spawn_copy: bool, {:linear "tid"} copy_tid: Tid, to_write: int)
+procedure {:atomic} {:layer 6} A_MainLoopBody({:linear "tid"} tid: Tid, {:linear "tid"} copy_tid: Tid)
+  returns (spawn_copy: bool, to_write: int)
 modifies copy, latest, N, copy_bound, requested_copy_bound, is_running, copy_thread, unallocated;
 {
   assert Inv(copy, latest, N, copy_bound, requested_copy_bound, is_running, copy_thread);
   havoc copy, latest, N, copy_bound, requested_copy_bound, is_running, copy_thread;
   assume Inv(copy, latest, N, copy_bound, requested_copy_bound, is_running, copy_thread);
   assume !spawn_copy ==> old(is_running[copy_thread]) || !is_running[copy_thread];
-
-  assume unallocated[copy_tid];
-  unallocated[copy_tid] := false;
 }
 
 function MainPostCond(copy_bound, requested_copy_bound: int, copy, latest: SetInt) : bool
@@ -192,10 +192,11 @@ const main_tid : Tid;
 // Entry point of the algorithm.
 procedure {:yields} {:layer 6} Main({:linear "tid"} tid: Tid)
 requires {:layer 5} tid == main_tid;
+requires {:layer 5} UnallocatedRunning(unallocated, is_running);
 requires {:layer 5, 6} N == copy_bound;
 requires {:layer 5, 6} requested_copy_bound == copy_bound;
 requires {:layer 6} copy == (lambda n : int :: latest[n] && n <= copy_bound);
-requires {:layer 6} (forall n : int :: latest[n] ==> n <= N); 
+requires {:layer 6} (forall n : int :: latest[n] ==> n <= N);
 requires {:layer 6} !is_running[copy_thread];
 ensures {:layer 6} MainPostCond(copy_bound, requested_copy_bound, copy, latest);
 {
@@ -212,9 +213,11 @@ ensures {:layer 6} MainPostCond(copy_bound, requested_copy_bound, copy, latest);
   assert {:layer 6} (forall n : int :: latest[n] ==> n <= N);
   assert {:layer 6} !is_running[copy_thread];
   assert {:layer 6} copy_bound == requested_copy_bound;
+  assert {:layer 5} UnallocatedRunning(unallocated, is_running);
 
   while (*)
   invariant {:layer 5} requested_copy_bound <= N;
+  invariant {:layer 5} UnallocatedRunning(unallocated, is_running);
   invariant {:layer 6} Inv(copy, latest, N, copy_bound, requested_copy_bound, is_running, copy_thread);
   invariant {:layer 6} !is_running[copy_thread];
   {
@@ -222,14 +225,18 @@ ensures {:layer 6} MainPostCond(copy_bound, requested_copy_bound, copy, latest);
     // and A_Allocate is a right mover, so I put it before the call to MainBody to avoid
     // having to add another yield.
     call write_tid := Allocate();
+    // Allocate a thread that may be used for Copy.
+    call copy_tid := Allocate();
 
-    call spawn_copy, copy_tid, to_write := MainLoopBody(tid);
+    call spawn_copy, to_write := MainLoopBody(tid, copy_tid);
+
     async call Write(write_tid, to_write);
     if (spawn_copy) {
       async call Copy(copy_tid);
     } 
     yield;
     assert {:layer 5} requested_copy_bound <= N;
+    assert {:layer 5} UnallocatedRunning(unallocated, is_running);
     assert {:layer 6} !is_running[copy_thread];
     assert {:layer 6} Inv(copy, latest, N, copy_bound, requested_copy_bound, is_running, copy_thread);
   }
