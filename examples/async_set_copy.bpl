@@ -149,16 +149,20 @@ requires {:layer 5} tid == main_tid;
 requires {:layer 5} requested_copy_bound <= N;
 requires {:layer 5} is_running[copy_tid];
 requires {:layer 5} UnallocatedRunning(unallocated, is_running);
+requires {:layer 5} N > 0;
 ensures {:layer 5} requested_copy_bound <= N;
 ensures {:layer 5} spawn_copy ==> copy_tid == copy_thread;
 ensures {:layer 5} UnallocatedRunning(unallocated, is_running);
 ensures {:layer 5} to_write <= N;
 ensures {:layer 5} is_running[copy_tid];
+ensures {:layer 5} N > 0;
+ensures {:layer 5} spawn_copy ==> requested_copy_bound > 0;
 {
   yield;
   assert {:layer 5} requested_copy_bound <= N;
   assert {:layer 5} is_running[copy_tid];
   assert {:layer 5} UnallocatedRunning(unallocated, is_running);
+  assert {:layer 5} N > 0;
 
   call spawn_copy, to_write := MainLoopBodyLow(copy_tid);
 
@@ -168,6 +172,8 @@ ensures {:layer 5} is_running[copy_tid];
   assert {:layer 5} to_write <= N;
   assert {:layer 5} UnallocatedRunning(unallocated, is_running);
   assert {:layer 5} is_running[copy_tid];
+  assert {:layer 5} N > 0;
+  assert {:layer 5} spawn_copy ==> requested_copy_bound > 0;
 }
 
 procedure {:atomic} {:layer 6} A_MainLoopBody({:linear "tid"} tid: Tid, {:linear "tid"} copy_tid: Tid)
@@ -182,8 +188,9 @@ modifies copy, latest, N, copy_bound, requested_copy_bound, is_running, copy_thr
 
 function MainPostCond(copy_bound, requested_copy_bound: int, copy, latest: SetInt) : bool
 {
-     copy_bound == requested_copy_bound
-  && copy == (lambda n : int :: latest[n] && n <= requested_copy_bound)
+  requested_copy_bound != 0 ==>
+  (   copy_bound == requested_copy_bound
+   && copy == (lambda n : int :: latest[n] && n <= requested_copy_bound))
 }
 
 // Constant used to enforce that only one thread runs Main.
@@ -193,6 +200,7 @@ const main_tid : Tid;
 procedure {:yields} {:layer 6} Main({:linear "tid"} tid: Tid)
 requires {:layer 5} tid == main_tid;
 requires {:layer 5} UnallocatedRunning(unallocated, is_running);
+requires {:layer 5} N > 0; 
 requires {:layer 5, 6} N == copy_bound;
 requires {:layer 5, 6} requested_copy_bound == copy_bound;
 requires {:layer 6} copy == (lambda n : int :: latest[n] && n <= copy_bound);
@@ -207,8 +215,8 @@ ensures {:layer 6} MainPostCond(copy_bound, requested_copy_bound, copy, latest);
 
   yield;
   assert {:layer 5} tid == main_tid; 
-  assert {:layer 5, 6} N == copy_bound;
-  assert {:layer 5, 6} requested_copy_bound == copy_bound;
+  assert {:layer 5} N > 0; 
+  assert {:layer 5, 6} requested_copy_bound <= N;
   assert {:layer 6} copy == (lambda n : int :: latest[n] && n <= copy_bound);
   assert {:layer 6} (forall n : int :: latest[n] ==> n <= N);
   assert {:layer 6} !is_running[copy_thread];
@@ -217,6 +225,7 @@ ensures {:layer 6} MainPostCond(copy_bound, requested_copy_bound, copy, latest);
 
   while (*)
   invariant {:layer 5} requested_copy_bound <= N;
+  invariant {:layer 5} N > 0;
   invariant {:layer 5} UnallocatedRunning(unallocated, is_running);
   invariant {:layer 6} Inv(copy, latest, N, copy_bound, requested_copy_bound, is_running, copy_thread);
   invariant {:layer 6} !is_running[copy_thread];
@@ -237,6 +246,7 @@ ensures {:layer 6} MainPostCond(copy_bound, requested_copy_bound, copy, latest);
     yield;
     assert {:layer 5} requested_copy_bound <= N;
     assert {:layer 5} UnallocatedRunning(unallocated, is_running);
+    assert {:layer 5} N > 0; 
     assert {:layer 6} !is_running[copy_thread];
     assert {:layer 6} Inv(copy, latest, N, copy_bound, requested_copy_bound, is_running, copy_thread);
   }
@@ -341,7 +351,7 @@ modifies copy, latest, N, copy_bound, requested_copy_bound, is_running, copy_thr
 
 // Models evaluating the loop condition in Copy to true.
 procedure {:yields} {:layer 0} {:refines "A_Copy_Continue"}
-  Copy_Continue(creating_copy_bound: int) returns (next_copy_bound: int);   
+  Copy_Continue(creating_copy_bound: int) returns (next_copy_bound: int);
 procedure {:right} {:layer 1, 5} A_Copy_Continue(creating_copy_bound: int)
   returns (next_copy_bound: int)
 {
@@ -441,13 +451,16 @@ modifies copy_bound, copy;
 // of Copy_Stop means that the lock is held even after setting is_running[tid] to false,
 // which also seems a bit strange.
 procedure {:yields} {:layer 5} {:refines "A_Copy"} Copy({:linear "tid"} tid: Tid)
+requires {:layer 5} 0 <= requested_copy_bound;
 requires {:layer 5} tid == copy_thread;
 requires {:layer 5} is_running[tid];
 {
-  var creating_copy_bound: int where creating_copy_bound < requested_copy_bound;
+  var creating_copy_bound: int;
+  creating_copy_bound := 0;
 
   yield;
-  assert {:layer 5} creating_copy_bound < requested_copy_bound;
+  assert {:layer 5} creating_copy_bound <= requested_copy_bound;
+  assert {:layer 5} 0 <= requested_copy_bound; 
   assert {:layer 5} is_running[tid];
   assert {:layer 5} tid == copy_thread;
 
@@ -456,7 +469,8 @@ requires {:layer 5} is_running[tid];
   while (true)
   invariant {:layer 5} {:terminates} true;
   invariant {:layer 5} creating_copy_bound <= requested_copy_bound;
-  invariant {:layer 5} creating_copy_bound == requested_copy_bound ==>
+  invariant {:layer 5} 0 <= requested_copy_bound; 
+  invariant {:layer 5} (requested_copy_bound != 0 && creating_copy_bound == requested_copy_bound) ==>
     (copy == latest && copy_bound == requested_copy_bound);
   invariant {:layer 4} HoldsLockExclusive(tid, lock); 
   {
@@ -465,6 +479,7 @@ requires {:layer 5} is_running[tid];
     } else {
       call Copy_Stop(tid, creating_copy_bound);
       call ReleaseLockExclusive(tid);
+      assert {:layer 5} requested_copy_bound != 0 ==> copy == latest && copy_bound == requested_copy_bound; 
       yield;
       return;
     }
@@ -508,8 +523,7 @@ modifies copy, latest, N, copy_bound, requested_copy_bound, is_running, copy_thr
 
 function Inv(copy, latest: SetInt, N, copy_bound, requested_copy_bound: int, is_running: [Tid]bool, copy_thread: Tid) : bool
 {
-     (forall n : int :: copy[n] ==> latest[n])
-  && (forall n : int :: latest[n] ==> n <= N)
+     (forall n : int :: latest[n] ==> n <= N)
   && requested_copy_bound <= N
   && (is_running[copy_thread] ==>
         (forall n : int :: latest[n] ==> n <= requested_copy_bound))
