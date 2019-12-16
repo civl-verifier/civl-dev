@@ -1,11 +1,3 @@
-# Annotations that used to exists in CIVL
-
-What was their purpose and are they subsumed or unnecessary now?
-
-* pure: subsumed by instrumentation procedures?
-* extern: Yielding procedure without implementation. Attached atomic action not
-  subject to commutativity checks.
-
 # Linearity
 
 * Make linearity more general, for example:
@@ -21,3 +13,29 @@ What was their purpose and are they subsumed or unnecessary now?
 # Split VCs into smaller ones
 
 See [SplittingChecks.md](SplittingChecks.md).
+
+# Cooperation checking
+
+The soundness of yield sufficiency checking depends on cooperation which is not checked currently.
+
+# Parallel calls
+
+The type checking of parallel calls and desugaring does not match the description in
+`Layered concurrent programs` and the upcoming CAV submission.
+
+# Inductive sequentialization
+
+Bernhard, please fill this section in.
+
+# Yield invariants
+
+Shall we add yield invariants and drop yield statements from CIVL?
+
+# Global invariants
+
+A global invariant has similar syntax to yield invariants but is not allowed any input parameters
+and cannot refer to old snapshot of global variables.
+A global invariant must be preserved by each atomic action (as opposed to yield-free code fragments)
+and must be satisfied by the initial state of the program.
+It can be injected as an assume at any control location in a procedure implementation,
+the typical candidates being a loop head or immediately after a procedure call.
