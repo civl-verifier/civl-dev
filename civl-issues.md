@@ -28,7 +28,6 @@
 
 # Async calls
 
-* Drop snapshotting at async calls at all layers
 * Add precondition checks at async calls at all layers
 * Implement flow analysis to ensure that no global update happens between an async all and the next yield
 
