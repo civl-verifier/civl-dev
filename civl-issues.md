@@ -19,8 +19,6 @@
 
 * Compile skip procedures as atomic action procedures that refine the skip action
 
-# Convert yield statements into yield invariants and modify backend so that it is aware only of yield invariants
-
 # Add support for specifying yield invariants in a CIVL file and for including them in parallel calls
 
 * Yield invariants, potentially invoked at different layers, should be allowed in a parallel call
@@ -28,7 +26,6 @@
 
 # Async calls
 
-* Add precondition checks at async calls at all layers
 * Implement flow analysis to ensure that no global update happens between an async all and the next yield
 
 # Split each per-layer checker procedure into pieces
