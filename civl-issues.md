@@ -21,3 +21,8 @@ depends on cooperation which is not checked currently.
 * Make linearity more general, for example:
   * Allow multiple linear annotations on a variable.
   * Allow direct specification of the collector function for a variable.
+
+# Assuming the gate of the refined action
+
+* The justification for this feature is poorly understood. Can we drop it?
+* In purity-issta.bpl, there is a loop that requires a yield at the beginning of the body to get the gate assumed.
