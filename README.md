@@ -6,4 +6,4 @@ CIVL is implemented as part of the
 [Boogie](https://github.com/boogie-org/boogie) verifier.
 
 A "desugared" CIVL file is generated using the flag
-`/CivlDesugaredFile:<file.bpl>`.
+`/civlDesugaredFile:<file.bpl>`.
