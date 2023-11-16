@@ -1,5 +1,3 @@
-// RUN: %parallel-boogie "%s" > "%t"
-
 type MemAddr;
 
 type Value;
@@ -75,83 +73,6 @@ var {:layer 1,2} snoopPermissions: Lset SnoopPermission;
 var {:layer 1,2} dirPermissions: Lset DirPermission;
 
 
-// Permission actions
-action {:layer 1,2} GetDirRequestPermissionAtCache(i: CacheId, ma: MemAddr) returns (drp: Lset DirRequestPermission)
-modifies dirRequestPermissionsAtCache;
-{
-  drp := Lset(MapOne(DirRequestPermission(i, ma)));
-  call Lset_Split(drp, dirRequestPermissionsAtCache);
-}
-
-action {:layer 1,2} PutDirRequestPermissionAtCache({:linear_in} drp: Lset DirRequestPermission)
-modifies dirRequestPermissionsAtCache;
-{
-  call Lset_Transfer(drp, dirRequestPermissionsAtCache);
-}
-
-action {:layer 1,2} GetDirRequestPermissionAtDir(i: CacheId, ma: MemAddr) returns (drp: Lset DirRequestPermission)
-modifies dirRequestPermissionsAtDir;
-{
-  drp := Lset(MapOne(DirRequestPermission(i, ma)));
-  call Lset_Split(drp, dirRequestPermissionsAtDir);
-}
-
-action {:layer 1,2} PutDirRequestPermissionAtDir({:linear_in} drp: Lset DirRequestPermission)
-modifies dirRequestPermissionsAtDir;
-{
-  call Lset_Transfer(drp, dirRequestPermissionsAtDir);
-}
-
-action {:layer 1,2} EmptyDirRequestPermission() returns (drp: Lset DirRequestPermission)
-{
-  call drp := Lset_Empty();
-}
-
-action {:layer 1,2} GetDirPermission(ma: MemAddr) returns (dp: Lset DirPermission)
-modifies dirPermissions;
-{
-  dp := Lset((lambda x: DirPermission :: x->ma == ma));//WholeDirPermission(ma); // FIXME
-  call Lset_Split(dp, dirPermissions);
-}
-
-action {:layer 1,2} PutDirPermission({:linear_in} dp: Lset DirPermission)
-modifies dirPermissions;
-{
-  call Lset_Transfer(dp, dirPermissions);
-}
-
-action {:layer 1,2} SplitDirPermission(i: CacheId, ma: MemAddr, {:linear_in} dp: Lset DirPermission) returns (dp': Lset DirPermission, dpOne: Lset DirPermission)
-{
-  dpOne := Lset(MapOne(DirPermission(i, ma)));
-  dp' := dp;
-  call Lset_Split(dpOne, dp');
-}
-
-action {:layer 1,2} JoinDirPermission({:linear_in} dpOne: Lset DirPermission, {:linear_in} dp: Lset DirPermission) returns (dp': Lset DirPermission)
-{
-  dp' := dp;
-  call Lset_Transfer(dpOne, dp');
-}
-
-action {:layer 1,2} EmptyDirPermission() returns (dp: Lset DirPermission)
-{
-  call dp := Lset_Empty();
-}
-
-action {:layer 1} GetSnoopPermission(i: CacheId, ma: MemAddr) returns (sp: Lval SnoopPermission)
-modifies snoopPermissions;
-{
-  sp := Lval(SnoopPermission(i, ma, back[i][ma]));
-  call Lval_Split(sp, snoopPermissions);
-}
-
-action {:layer 1} PutSnoopPermission(i: CacheId, ma: MemAddr, {:linear_in} sp: Lval SnoopPermission)
-modifies snoopPermissions;
-{
-  call Lval_Transfer(sp, snoopPermissions);
-}
-
-
 // at cache
 yield procedure {:layer 2} cache_read_share_req(i: CacheId, ma: MemAddr) returns (result: Option Value)
 {
@@ -219,9 +140,10 @@ modifies cache, dirRequestPermissionsAtCache;
 {
   call result, line := atomic_cache_req_begin#0(i, currRequest);
   if (result is None && line->currRequest is NoCacheRequest) {
-    call drp := GetDirRequestPermissionAtCache(i, currRequest->ma);
+    drp := Lset(MapOne(DirRequestPermission(i, currRequest->ma)));
+    call Lset_Split(drp, dirRequestPermissionsAtCache);
   } else {
-    call drp := EmptyDirRequestPermission();
+    call drp := Lset_Empty();
   }
 }
 yield procedure {:layer 1} cache_req_begin(i: CacheId, currRequest: CacheRequest) returns (result: Option Value, line: CacheLine, {:layer 1} drp: Lset DirRequestPermission)
@@ -229,9 +151,10 @@ refines atomic_cache_req_begin;
 {
   call result, line := cache_req_begin#0(i, currRequest);
   if (result is None && line->currRequest is NoCacheRequest) {
-    call drp := GetDirRequestPermissionAtCache(i, currRequest->ma);
+    drp := Lset(MapOne(DirRequestPermission(i, currRequest->ma)));
+    call {:layer 1} Lset_Split(drp, dirRequestPermissionsAtCache);
   } else {
-    call drp := EmptyDirRequestPermission();
+    call {:layer 1} drp := Lset_Empty();
   }
 }
 
@@ -480,14 +403,15 @@ modifies back, dir, dirRequestPermissionsAtDir, dirPermissions;
   dirState := dirInfo->state;
   drp' := drp;
   if ((dirRequest is Share && dirState is Owner) || (dirRequest is Own && dirState != Sharers(Set_Empty()))) {
-    call PutDirRequestPermissionAtDir(drp');
-    call drp' := EmptyDirRequestPermission();
+    call Lset_Transfer(drp', dirRequestPermissionsAtDir);
+    call drp' := Lset_Empty();
   }
   if (dirRequest is Own && dirState is Sharers && dirState->iset != Set_Empty()) {
     dp := Lset((lambda x: DirPermission :: x->ma == ma && Set_Contains(dirState->iset, x->i)));
     call Lset_Split(dp, dirPermissions);
   } else {
-    call dp := GetDirPermission(ma);
+    dp := WholeDirPermission(ma);
+    call Lset_Split(dp, dirPermissions);
   }
 }
 yield procedure {:layer 1} dir_req_begin(ma: MemAddr, dirRequest: DirRequest, {:layer 1} {:linear_in} drp: Lset DirRequestPermission)
@@ -499,14 +423,15 @@ refines atomic_dir_req_begin;
   dirState := dirInfo->state;
   drp' := drp;
   if ((dirRequest is Share && dirState is Owner) || (dirRequest is Own && dirState != Sharers(Set_Empty()))) {
-    call PutDirRequestPermissionAtDir(drp');
-    call drp' := EmptyDirRequestPermission();
+    call {:layer 1} Lset_Transfer(drp', dirRequestPermissionsAtDir);
+    call {:layer 1} drp' := Lset_Empty();
   }
   if (dirRequest is Own && dirState is Sharers && dirState->iset != Set_Empty()) {
     dp := Lset((lambda x: DirPermission :: x->ma == ma && Set_Contains(dirState->iset, x->i)));
     call {:layer 1} Lset_Split(dp, dirPermissions);
   } else {
-    call dp := GetDirPermission(ma);
+    dp := WholeDirPermission(ma);
+    call {:layer 1} Lset_Split(dp, dirPermissions);
   }
 }
 
@@ -581,39 +506,45 @@ atomic action {:layer 2} atomic_dir_snoop_exclusive_resp_begin(i: CacheId, ma: M
 modifies dir, dirRequestPermissionsAtDir;
 {
   call dirInfo := atomic_dir_snoop_resp_begin#0(i, ma);
-  call drp := GetDirRequestPermissionAtDir(dirInfo->currRequest->i, ma);
+  drp := Lset(MapOne(DirRequestPermission(dirInfo->currRequest->i, ma)));
+  call Lset_Split(drp, dirRequestPermissionsAtDir);
 }
 yield procedure {:layer 1} dir_snoop_exclusive_resp_begin(i: CacheId, ma: MemAddr) returns (dirInfo: DirInfo, {:layer 1} drp: Lset DirRequestPermission)
 refines atomic_dir_snoop_exclusive_resp_begin;
 {
   call dirInfo := dir_snoop_resp_begin#0(i, ma);
-  call drp := GetDirRequestPermissionAtDir(dirInfo->currRequest->i, ma);
+  drp := Lset(MapOne(DirRequestPermission(dirInfo->currRequest->i, ma)));
+  call {:layer 1} Lset_Split(drp, dirRequestPermissionsAtDir);
 }
 
 atomic action {:layer 2} atomic_dir_snoop_shared_resp_begin(i: CacheId, ma: MemAddr, {:linear_in} dpOne: Lset DirPermission) returns (dirInfo: DirInfo, drp: Lset DirRequestPermission, dp: Lset DirPermission)
 modifies dir, dirRequestPermissionsAtDir, dirPermissions;
 {
   call dirInfo := atomic_dir_snoop_resp_begin#0(i, ma);
-  call PutDirPermission(dpOne);
+  call Lset_Transfer(dpOne, dirPermissions);
   if (dirInfo->state == Sharers(Set_Empty())) {
-    call drp := GetDirRequestPermissionAtDir(dirInfo->currRequest->i, ma);
-    call dp := GetDirPermission(ma);
+    drp := Lset(MapOne(DirRequestPermission(dirInfo->currRequest->i, ma)));
+    call Lset_Split(drp, dirRequestPermissionsAtDir);
+    dp := WholeDirPermission(ma);
+    call Lset_Split(dp, dirPermissions);
   } else {
-    call drp := EmptyDirRequestPermission();
-    call dp := EmptyDirPermission();
+    call drp := Lset_Empty();
+    call dp := Lset_Empty();
   }
 }
 yield procedure {:layer 1} dir_snoop_shared_resp_begin(i: CacheId, ma: MemAddr, {:layer 1} {:linear_in} dpOne: Lset DirPermission) returns (dirInfo: DirInfo, {:layer 1} drp: Lset DirRequestPermission, {:layer 1} dp: Lset DirPermission)
 refines atomic_dir_snoop_shared_resp_begin;
 {
   call dirInfo := dir_snoop_resp_begin#0(i, ma);
-  call PutDirPermission(dpOne);
+  call {:layer 1} Lset_Transfer(dpOne, dirPermissions);
   if (dirInfo->state == Sharers(Set_Empty())) {
-    call drp := GetDirRequestPermissionAtDir(dirInfo->currRequest->i, ma);
-    call dp := GetDirPermission(ma);
+    drp := Lset(MapOne(DirRequestPermission(dirInfo->currRequest->i, ma)));
+    call {:layer 1} Lset_Split(drp, dirRequestPermissionsAtDir);
+    dp := WholeDirPermission(ma);
+    call {:layer 1} Lset_Split(dp, dirPermissions);
   } else {
-    call drp := EmptyDirRequestPermission();
-    call dp := EmptyDirPermission();
+    call {:layer 1} drp := Lset_Empty();
+    call {:layer 1} dp := Lset_Empty();
   }
 }
 
@@ -657,13 +588,13 @@ atomic action {:layer 2} atomic_dir_req_end(ma: MemAddr, dirState: DirState, {:l
 modifies dir, dirPermissions;
 {
   call atomic_dir_req_end#0(ma, dirState);
-  call PutDirPermission(dp);
+  call Lset_Transfer(dp, dirPermissions);
 }
 yield procedure {:layer 1} dir_req_end(ma: MemAddr, dirState: DirState, {:layer 1} {:linear_in} dp: Lset DirPermission)
 refines atomic_dir_req_end;
 {
   call dir_req_end#0(ma, dirState);
-  call PutDirPermission(dp);
+  call {:layer 1} Lset_Transfer(dp, dirPermissions);
 }
 
 atomic action {:layer 1,2} atomic_dir_req_end#0(ma: MemAddr, dirState: DirState)
