@@ -82,15 +82,15 @@ yield procedure {:layer 2} cache_read_share_req(i: CacheId, ma: MemAddr) returns
   if (result is Some) {
     return;
   }
-  if (!(line->currRequest is NoCacheRequest)) {
-    return;
-  }
-  if (line->state == Invalid()) {
-    async call dir_read_share_req(i, ma, drp);
-  } else if (line->state == Modified()) {
-    async call dir_evict_req(i, ma, Some(line->value), drp);
-  } else {
-    async call dir_evict_req(i, ma, None(), drp);
+  if (line->currRequest is NoCacheRequest) {
+    // cache[i][ma]->currRequest was set to this request
+    if (line->state == Invalid()) {
+      async call dir_read_share_req(i, ma, drp);
+    } else if (line->state == Modified()) {
+      async call dir_evict_req(i, ma, Some(line->value), drp);
+    } else {
+      async call dir_evict_req(i, ma, None(), drp);
+    }
   }
 }
 
@@ -102,15 +102,15 @@ yield procedure {:layer 2} cache_read_own_req(i: CacheId, ma: MemAddr) returns (
   if (result is Some) {
     return;
   }
-  if (!(line->currRequest is NoCacheRequest)) {
-    return;
-  }
-  if (line->state == Invalid() || line->ma == ma) {
-    async call dir_read_own_req(i, ma, drp);
-  } else if (line->state == Modified()) {
-    async call dir_evict_req(i, ma, Some(line->value), drp);
-  } else {
-    async call dir_evict_req(i, ma, None(), drp);
+  if (line->currRequest is NoCacheRequest) {
+    // cache[i][ma]->currRequest was set to this request
+    if (line->state == Invalid() || line->ma == ma) {
+      async call dir_read_own_req(i, ma, drp);
+    } else if (line->state == Modified()) {
+      async call dir_evict_req(i, ma, Some(line->value), drp);
+    } else {
+      async call dir_evict_req(i, ma, None(), drp);
+    }
   }
 }
 
@@ -123,15 +123,15 @@ yield procedure {:layer 2} cache_write_req(i: CacheId, ma: MemAddr, v: Value) re
   if (result is Some) {
     return;
   }
-  if (!(line->currRequest is NoCacheRequest)) {
-    return;
-  }
-  if (line->state == Invalid() || line->ma == ma) {
-    async call dir_read_own_req(i, ma, drp);
-  } else if (line->state == Modified()) {
-    async call dir_evict_req(i, ma, Some(line->value), drp);
-  } else {
-    async call dir_evict_req(i, ma, None(), drp);
+  if (line->currRequest is NoCacheRequest) {
+    // cache[i][ma]->currRequest was set to this request
+    if (line->state == Invalid() || line->ma == ma) {
+      async call dir_read_own_req(i, ma, drp);
+    } else if (line->state == Modified()) {
+      async call dir_evict_req(i, ma, Some(line->value), drp);
+    } else {
+      async call dir_evict_req(i, ma, None(), drp);
+    }
   }
 }
 
