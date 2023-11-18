@@ -635,14 +635,16 @@ atomic action {:layer 2} atomic_read_back(i: CacheId, ma: MemAddr, dp: Lset DirP
 modifies snoopPermissions;
 {
   assert Lset_Contains(dp, DirPermission(i, ma));
-  call Lval_Split(sp, snoopPermissions);
   call ticket := atomic_read_back#0(i, ma);
+  sp := Lval(SnoopPermission(i, ma, ticket));
+  call Lval_Split(sp, snoopPermissions);
 }
 yield procedure {:layer 1} read_back(i: CacheId, ma: MemAddr, {:layer 1} dp: Lset DirPermission) returns (ticket: int, sp: Lval SnoopPermission)
 refines atomic_read_back;
 {
-  call {:layer 1} Lval_Split(sp, snoopPermissions);
   call ticket := read_back#0(i, ma);
+  sp := Lval(SnoopPermission(i, ma, ticket));
+  call {:layer 1} Lval_Split(sp, snoopPermissions);
 }
 
 atomic action {:layer 1,2} atomic_read_back#0(i: CacheId, ma: MemAddr) returns (ticket: int)
@@ -656,14 +658,16 @@ atomic action {:layer 2} atomic_increment_back(i: CacheId, ma: MemAddr, dp: Lset
 modifies back, snoopPermissions;
 {
   assert dp == WholeDirPermission(ma);
-  call Lval_Split(sp, snoopPermissions);
   call ticket := atomic_increment_back#0(i, ma);
+  sp := Lval(SnoopPermission(i, ma, ticket));
+  call Lval_Split(sp, snoopPermissions);
 }
 yield procedure {:layer 1} increment_back(i: CacheId, ma: MemAddr, {:layer 1} dp: Lset DirPermission) returns (ticket: int, sp: Lval SnoopPermission)
 refines atomic_increment_back;
 {
-  call {:layer 1} Lval_Split(sp, snoopPermissions);
   call ticket := increment_back#0(i, ma);
+  sp := Lval(SnoopPermission(i, ma, ticket));
+  call {:layer 1} Lval_Split(sp, snoopPermissions);
 }
 
 atomic action {:layer 1,2} atomic_increment_back#0(i: CacheId, ma: MemAddr) returns (ticket: int)
