@@ -189,26 +189,26 @@ modifies cache;
 yield procedure {:layer 0} cache_req_begin#0(i: CacheId, currRequest: CacheRequest) returns (result: Option Value, line: CacheLine);
 refines atomic_cache_req_begin#0;
 
-yield procedure {:layer 2} cache_read_resp(i: CacheId, ma: MemAddr, v: Value, s: State, ticket: int, {:layer 1,2} {:linear_in} drp: Lset DirRequestPermission)
+yield procedure {:layer 2} cache_read_resp(i: CacheId, ma: MemAddr, v: Value, s: State, ticket: int, {:layer 1,2} {:linear_in} drp: Lset DirRequestPermission, {:layer 1,2} {:linear_in} sp: Lval SnoopPermission)
 {
   call increment_front(i, ma, ticket, drp);
-  call cache_read_resp#1(i, ma, v, s, drp);
+  call cache_read_resp_begin(i, ma, v, s, drp, sp);
 }
 
-atomic action {:layer 2} atomic_cache_read_resp#1(i: CacheId, ma: MemAddr, v: Value, s: State, {:linear_in} drp: Lset DirRequestPermission)
-modifies cache, front, dirRequestPermissionsAtCache, dirRequestPermissionsAtDir;
+atomic action {:layer 2} atomic_cache_read_resp_begin(i: CacheId, ma: MemAddr, v: Value, s: State, {:linear_in} drp: Lset DirRequestPermission, {:linear_in} sp: Lval SnoopPermission)
+modifies cache, front, dirRequestPermissionsAtCache;
 {
-  call atomic_cache_read_resp#0(i, ma, v, s);
+  call atomic_cache_read_resp_begin#0(i, ma, v, s);
   call Lset_Transfer(drp, dirRequestPermissionsAtCache);
 }
-yield procedure {:layer 1} cache_read_resp#1(i: CacheId, ma: MemAddr, v: Value, s: State, {:layer 1} {:linear_in} drp: Lset DirRequestPermission)
-refines atomic_cache_read_resp#1;
+yield procedure {:layer 1} cache_read_resp_begin(i: CacheId, ma: MemAddr, v: Value, s: State, {:layer 1} {:linear_in} drp: Lset DirRequestPermission, {:layer 1} {:linear_in} sp: Lval SnoopPermission)
+refines atomic_cache_read_resp_begin;
 {
-  call cache_read_resp#0(i, ma, v, s);
+  call cache_read_resp_begin#0(i, ma, v, s);
   call {:layer 1} Lset_Transfer(drp, dirRequestPermissionsAtCache);
 }
 
-atomic action {:layer 1,2} atomic_cache_read_resp#0(i: CacheId, ma: MemAddr, v: Value, s: State)
+atomic action {:layer 1,2} atomic_cache_read_resp_begin#0(i: CacheId, ma: MemAddr, v: Value, s: State)
 modifies cache;
 {
   var currRequest: CacheRequest;
@@ -225,14 +225,14 @@ modifies cache;
   }
   cache[i][ca] := CacheLine(ma, v, s, NoCacheRequest());
 }
-yield procedure {:layer 0} cache_read_resp#0(i: CacheId, ma: MemAddr, v: Value, s: State);
-refines atomic_cache_read_resp#0;
+yield procedure {:layer 0} cache_read_resp_begin#0(i: CacheId, ma: MemAddr, v: Value, s: State);
+refines atomic_cache_read_resp_begin#0;
 
-yield procedure {:layer 2} cache_evict_resp(i: CacheId, ma: MemAddr, ticket: int, {:layer 1,2} {:linear_in} drp: Lset DirRequestPermission)
+yield procedure {:layer 2} cache_evict_resp(i: CacheId, ma: MemAddr, ticket: int, {:layer 1,2} {:linear_in} drp: Lset DirRequestPermission, {:layer 1,2} {:linear_in} sp: Lval SnoopPermission)
 {
   var currRequest: CacheRequest;
   call increment_front(i, ma, ticket, drp);
-  call currRequest := cache_evict_resp_begin(i, ma);
+  call currRequest := cache_evict_resp_begin(i, ma, sp);
   if (currRequest is ReadShared) {
     async call dir_read_share_req(i, currRequest->ma, drp);
   } else {
@@ -240,7 +240,18 @@ yield procedure {:layer 2} cache_evict_resp(i: CacheId, ma: MemAddr, ticket: int
   }
 }
 
-atomic action {:layer 1,2} atomic_cache_evict_resp_begin(i: CacheId, ma: MemAddr) returns (currRequest: CacheRequest)
+atomic action {:layer 1,2} atomic_cache_evict_resp_begin(i: CacheId, ma: MemAddr, {:linear_in} sp: Lval SnoopPermission) returns (currRequest: CacheRequest)
+modifies cache;
+{
+  call currRequest := atomic_cache_evict_resp_begin#0(i, ma);
+}
+yield procedure {:layer 1} cache_evict_resp_begin(i: CacheId, ma: MemAddr, {:layer 1} {:linear_in} sp: Lval SnoopPermission) returns (currRequest: CacheRequest)
+refines atomic_cache_evict_resp_begin;
+{
+  call currRequest := cache_evict_resp_begin#0(i, ma);
+}
+
+atomic action {:layer 1,2} atomic_cache_evict_resp_begin#0(i: CacheId, ma: MemAddr) returns (currRequest: CacheRequest)
 modifies cache;
 {
   var line: CacheLine;
@@ -251,14 +262,14 @@ modifies cache;
   assert !(line->currRequest is NoCacheRequest);
   cache[i][ca]->state := Invalid();
 }
-yield procedure {:layer 0} cache_evict_resp_begin(i: CacheId, ma: MemAddr) returns (currRequest: CacheRequest);
-refines atomic_cache_evict_resp_begin;
+yield procedure {:layer 0} cache_evict_resp_begin#0(i: CacheId, ma: MemAddr) returns (currRequest: CacheRequest);
+refines atomic_cache_evict_resp_begin#0;
 
-yield procedure {:layer 2} cache_snoop_exclusive_req(i: CacheId, ma: MemAddr, s: State, ticket: int, {:layer 1,2} {:linear_in} dp: Lset DirPermission)
+yield procedure {:layer 2} cache_snoop_exclusive_req(i: CacheId, ma: MemAddr, s: State, ticket: int, {:layer 1,2} {:linear_in} dp: Lset DirPermission, {:layer 1,2} {:linear_in} sp: Lval SnoopPermission)
 {
   var opt_value: Option Value;
   call opt_value := cache_snoop_exclusive_req_begin(i, ma, s, ticket, dp);
-  async call dir_snoop_exclusive_resp(i, ma, opt_value, dp);
+  async call dir_snoop_exclusive_resp(i, ma, opt_value, dp, sp);
 }
 
 atomic action {:layer 1,2} atomic_cache_snoop_exclusive_req_begin(i: CacheId, ma: MemAddr, s: State, ticket: int, {:layer 1} {:linear} dp: Lset DirPermission) returns (opt_value: Option Value)
@@ -294,10 +305,10 @@ modifies cache;
 yield procedure {:layer 0} cache_snoop_exclusive_req_begin#0(i: CacheId, ma: MemAddr, s: State, ticket: int) returns (opt_value: Option Value);
 refines atomic_cache_snoop_exclusive_req_begin#0;
 
-yield procedure {:layer 2} cache_snoop_shared_req(i: CacheId, ma: MemAddr, ticket: int, {:layer 1,2} {:linear_in} dpOne: Lset DirPermission)
+yield procedure {:layer 2} cache_snoop_shared_req(i: CacheId, ma: MemAddr, ticket: int, {:layer 1,2} {:linear_in} dpOne: Lset DirPermission, {:layer 1,2} {:linear_in} sp: Lval SnoopPermission)
 {
   call cache_snoop_shared_req_begin(i, ma, ticket, dpOne);
-  async call dir_snoop_shared_resp(i, ma, dpOne);
+  async call dir_snoop_shared_resp(i, ma, dpOne, sp);
 }
 
 atomic action {:layer 1,2} atomic_cache_snoop_shared_req_begin(i: CacheId, ma: MemAddr, ticket: int, {:linear} dpOne: Lset DirPermission)
@@ -374,23 +385,23 @@ yield procedure {:layer 2} dir_evict_req(i: CacheId, ma: MemAddr, opt_value: Opt
   call dir_evict_req_middle(i, ma, dirState, drp', dp);
 }
 
-yield procedure {:layer 2} dir_snoop_exclusive_resp(i: CacheId, ma: MemAddr, opt_value: Option Value, {:layer 1,2} {:linear_in} dp: Lset DirPermission)
+yield procedure {:layer 2} dir_snoop_exclusive_resp(i: CacheId, ma: MemAddr, opt_value: Option Value, {:layer 1,2} {:linear_in} dp: Lset DirPermission, {:layer 1,2} {:linear_in} sp: Lval SnoopPermission)
 {
   var dirInfo: DirInfo;
   var {:layer 1,2} drp: Lset DirRequestPermission;
   if (opt_value is Some) {
     call write_mem(ma, opt_value->t, dp);
   }
-  call dirInfo, drp := dir_snoop_exclusive_resp_begin(i, ma);
+  call dirInfo, drp := dir_snoop_exclusive_resp_begin(i, ma, sp);
   call dir_snoop_resp_middle(ma, dirInfo, drp, dp);
 }
 
-yield procedure {:layer 2} dir_snoop_shared_resp(i: CacheId, ma: MemAddr, {:layer 1,2} {:linear_in} dpOne: Lset DirPermission)
+yield procedure {:layer 2} dir_snoop_shared_resp(i: CacheId, ma: MemAddr, {:layer 1,2} {:linear_in} dpOne: Lset DirPermission, {:layer 1,2} {:linear_in} sp: Lval SnoopPermission)
 {
   var dirInfo: DirInfo;
   var {:layer 1,2} drp: Lset DirRequestPermission;
   var {:layer 1,2} {:linear} dp: Lset DirPermission;
-  call dirInfo, drp, dp := dir_snoop_shared_resp_begin(i, ma, dpOne);
+  call dirInfo, drp, dp := dir_snoop_shared_resp_begin(i, ma, dpOne, sp);
   call dir_snoop_resp_middle(ma, dirInfo, drp, dp);
 }
 
@@ -448,8 +459,9 @@ refines atomic_dir_req_begin#0;
 yield procedure {:layer 2} dir_snoop_exclusive_victim(ma: MemAddr, victim: CacheId, state: State, {:layer 1,2} {:linear_in} dp: Lset DirPermission)
 {
   var ticket: int;
-  call ticket := read_back(victim, ma, dp);
-  async call cache_snoop_exclusive_req(victim, ma, state, ticket, dp);
+  var {:layer 1,2} sp: Lval SnoopPermission;
+  call ticket, sp := read_back(victim, ma, dp);
+  async call cache_snoop_exclusive_req(victim, ma, state, ticket, dp, sp);
 }
 
 yield procedure {:layer 2} dir_snoop_shared_victims(ma: MemAddr, victims: Set CacheId, {:layer 1,2} {:linear_in} dp: Lset DirPermission)
@@ -459,6 +471,7 @@ yield procedure {:layer 2} dir_snoop_shared_victims(ma: MemAddr, victims: Set Ca
   var ticket: int;
   var {:layer 1,2} dp': Lset DirPermission;
   var {:layer 1,2} dpOne: Lset DirPermission;
+  var {:layer 1,2} sp: Lval SnoopPermission;
   victims' := victims;
   dp' := dp;
   while (victims' != Set_Empty()) {
@@ -466,8 +479,8 @@ yield procedure {:layer 2} dir_snoop_shared_victims(ma: MemAddr, victims: Set Ca
     victims' := Set_Remove(victims', victim);
     dpOne := Lset(MapOne(DirPermission(victim, ma)));
     call {:layer 1,2} Lset_Split(dpOne, dp');
-    call ticket := read_back(victim, ma, dpOne);
-    async call cache_snoop_shared_req(victim, ma, ticket, dpOne);
+    call ticket, sp := read_back(victim, ma, dpOne);
+    async call cache_snoop_shared_req(victim, ma, ticket, dpOne, sp);
   }
 }
 
@@ -476,14 +489,15 @@ yield procedure {:layer 2} dir_read_req_middle(i: CacheId, ma: MemAddr, dirState
   var dirState': DirState;
   var ticket: int;
   var value: Value;
+  var {:layer 1,2} sp: Lval SnoopPermission;
   call value := read_mem(ma, dp);
-  call ticket := increment_back(i, ma, dp);
+  call ticket, sp := increment_back(i, ma, dp);
   if (dirState->iset == Set_Empty()) {
     dirState' := Owner(i);
-    async call cache_read_resp(i, ma, value, Exclusive(), ticket, drp);
+    async call cache_read_resp(i, ma, value, Exclusive(), ticket, drp, sp);
   } else {
     dirState' := Sharers(Set_Add(dirState->iset, i));
-    async call cache_read_resp(i, ma, value, Shared(), ticket, drp);
+    async call cache_read_resp(i, ma, value, Shared(), ticket, drp, sp);
   }
   call dir_req_end(ma, dirState', dp);
 }
@@ -492,8 +506,9 @@ yield procedure {:layer 2} dir_evict_req_middle(i: CacheId, ma: MemAddr, dirStat
 {
   var dirState': DirState;
   var ticket: int;
-  call ticket := increment_back(i, ma, dp);
-  async call cache_evict_resp(i, ma, ticket, drp);
+  var {:layer 1,2} sp: Lval SnoopPermission;
+  call ticket, sp := increment_back(i, ma, dp);
+  async call cache_evict_resp(i, ma, ticket, drp, sp);
   if (dirState is Owner) {
     dirState' := Sharers(Set_Empty());
   } else {
@@ -502,26 +517,30 @@ yield procedure {:layer 2} dir_evict_req_middle(i: CacheId, ma: MemAddr, dirStat
   call dir_req_end(ma, dirState', dp);
 }
 
-atomic action {:layer 2} atomic_dir_snoop_exclusive_resp_begin(i: CacheId, ma: MemAddr) returns (dirInfo: DirInfo, drp: Lset DirRequestPermission)
-modifies dir, dirRequestPermissionsAtDir;
+atomic action {:layer 2} atomic_dir_snoop_exclusive_resp_begin(i: CacheId, ma: MemAddr, {:linear_in} sp: Lval SnoopPermission) returns (dirInfo: DirInfo, drp: Lset DirRequestPermission)
+modifies dir, dirRequestPermissionsAtDir, snoopPermissions;
 {
   call dirInfo := atomic_dir_snoop_resp_begin#0(i, ma);
+  call Lval_Transfer(sp, snoopPermissions);
   drp := Lset(MapOne(DirRequestPermission(dirInfo->currRequest->i, ma)));
   call Lset_Split(drp, dirRequestPermissionsAtDir);
 }
-yield procedure {:layer 1} dir_snoop_exclusive_resp_begin(i: CacheId, ma: MemAddr) returns (dirInfo: DirInfo, {:layer 1} drp: Lset DirRequestPermission)
+yield procedure {:layer 1} dir_snoop_exclusive_resp_begin(i: CacheId, ma: MemAddr, {:layer 1} {:linear_in} sp: Lval SnoopPermission) returns (dirInfo: DirInfo, {:layer 1} drp: Lset DirRequestPermission)
 refines atomic_dir_snoop_exclusive_resp_begin;
 {
   call dirInfo := dir_snoop_resp_begin#0(i, ma);
+  call {:layer 1} Lval_Transfer(sp, snoopPermissions);
   drp := Lset(MapOne(DirRequestPermission(dirInfo->currRequest->i, ma)));
   call {:layer 1} Lset_Split(drp, dirRequestPermissionsAtDir);
 }
 
-atomic action {:layer 2} atomic_dir_snoop_shared_resp_begin(i: CacheId, ma: MemAddr, {:linear_in} dpOne: Lset DirPermission) returns (dirInfo: DirInfo, drp: Lset DirRequestPermission, dp: Lset DirPermission)
-modifies dir, dirRequestPermissionsAtDir, dirPermissions;
+atomic action {:layer 2} atomic_dir_snoop_shared_resp_begin(i: CacheId, ma: MemAddr, {:linear_in} dpOne: Lset DirPermission, {:linear_in} sp: Lval SnoopPermission) 
+returns (dirInfo: DirInfo, drp: Lset DirRequestPermission, dp: Lset DirPermission)
+modifies dir, dirRequestPermissionsAtDir, dirPermissions, snoopPermissions;
 {
   call dirInfo := atomic_dir_snoop_resp_begin#0(i, ma);
   call Lset_Transfer(dpOne, dirPermissions);
+  call Lval_Transfer(sp, snoopPermissions);
   if (dirInfo->state == Sharers(Set_Empty())) {
     drp := Lset(MapOne(DirRequestPermission(dirInfo->currRequest->i, ma)));
     call Lset_Split(drp, dirRequestPermissionsAtDir);
@@ -532,11 +551,13 @@ modifies dir, dirRequestPermissionsAtDir, dirPermissions;
     call dp := Lset_Empty();
   }
 }
-yield procedure {:layer 1} dir_snoop_shared_resp_begin(i: CacheId, ma: MemAddr, {:layer 1} {:linear_in} dpOne: Lset DirPermission) returns (dirInfo: DirInfo, {:layer 1} drp: Lset DirRequestPermission, {:layer 1} dp: Lset DirPermission)
+yield procedure {:layer 1} dir_snoop_shared_resp_begin(i: CacheId, ma: MemAddr, {:layer 1} {:linear_in} dpOne: Lset DirPermission, {:layer 1} {:linear_in} sp: Lval SnoopPermission) 
+returns (dirInfo: DirInfo, {:layer 1} drp: Lset DirRequestPermission, {:layer 1} dp: Lset DirPermission)
 refines atomic_dir_snoop_shared_resp_begin;
 {
   call dirInfo := dir_snoop_resp_begin#0(i, ma);
   call {:layer 1} Lset_Transfer(dpOne, dirPermissions);
+  call {:layer 1} Lval_Transfer(sp, snoopPermissions);
   if (dirInfo->state == Sharers(Set_Empty())) {
     drp := Lset(MapOne(DirRequestPermission(dirInfo->currRequest->i, ma)));
     call {:layer 1} Lset_Split(drp, dirRequestPermissionsAtDir);
@@ -568,16 +589,17 @@ yield procedure {:layer 2} dir_snoop_resp_middle(ma: MemAddr, dirInfo: DirInfo, 
   var currRequest: DirRequest;
   var ticket: int;
   var value: Value;
+  var {:layer 1,2} sp: Lval SnoopPermission;
   dirState := dirInfo->state;
   currRequest := dirInfo->currRequest;
   if (dirState is Owner || dirState == Sharers(Set_Empty())) {
     call value := read_mem(ma, dp);
-    call ticket := increment_back(currRequest->i, ma, dp);
+    call ticket, sp := increment_back(currRequest->i, ma, dp);
     if (currRequest is Own) {
-      async call cache_read_resp(currRequest->i, ma, value, Exclusive(), ticket, drp);
+      async call cache_read_resp(currRequest->i, ma, value, Exclusive(), ticket, drp, sp);
       dirState := Owner(dirInfo->currRequest->i);
     } else {
-      async call cache_read_resp(currRequest->i, ma, value, Shared(), ticket, drp);
+      async call cache_read_resp(currRequest->i, ma, value, Shared(), ticket, drp, sp);
       dirState := Sharers(Set_Add(Set_Singleton(dirState->i), currRequest->i));
     }
     call dir_req_end(ma, dirState, dp);
@@ -609,14 +631,17 @@ refines atomic_dir_req_end#0;
 
 
 // Atomic actions for channels and memory
-atomic action {:layer 2} atomic_read_back(i: CacheId, ma: MemAddr, dp: Lset DirPermission) returns (ticket: int)
+atomic action {:layer 2} atomic_read_back(i: CacheId, ma: MemAddr, dp: Lset DirPermission) returns (ticket: int, sp: Lval SnoopPermission)
+modifies snoopPermissions;
 {
   assert Lset_Contains(dp, DirPermission(i, ma));
+  call Lval_Split(sp, snoopPermissions);
   call ticket := atomic_read_back#0(i, ma);
 }
-yield procedure {:layer 1} read_back(i: CacheId, ma: MemAddr, {:layer 1} dp: Lset DirPermission) returns (ticket: int)
+yield procedure {:layer 1} read_back(i: CacheId, ma: MemAddr, {:layer 1} dp: Lset DirPermission) returns (ticket: int, sp: Lval SnoopPermission)
 refines atomic_read_back;
 {
+  call {:layer 1} Lval_Split(sp, snoopPermissions);
   call ticket := read_back#0(i, ma);
 }
 
@@ -627,15 +652,17 @@ atomic action {:layer 1,2} atomic_read_back#0(i: CacheId, ma: MemAddr) returns (
 yield procedure {:layer 0} read_back#0(i: CacheId, ma: MemAddr) returns (ticket: int);
 refines atomic_read_back#0;
 
-atomic action {:layer 2} atomic_increment_back(i: CacheId, ma: MemAddr, dp: Lset DirPermission) returns (ticket: int)
-modifies back;
+atomic action {:layer 2} atomic_increment_back(i: CacheId, ma: MemAddr, dp: Lset DirPermission) returns (ticket: int, sp: Lval SnoopPermission)
+modifies back, snoopPermissions;
 {
   assert dp == WholeDirPermission(ma);
+  call Lval_Split(sp, snoopPermissions);
   call ticket := atomic_increment_back#0(i, ma);
 }
-yield procedure {:layer 1} increment_back(i: CacheId, ma: MemAddr, {:layer 1} dp: Lset DirPermission) returns (ticket: int)
+yield procedure {:layer 1} increment_back(i: CacheId, ma: MemAddr, {:layer 1} dp: Lset DirPermission) returns (ticket: int, sp: Lval SnoopPermission)
 refines atomic_increment_back;
 {
+  call {:layer 1} Lval_Split(sp, snoopPermissions);
   call ticket := increment_back#0(i, ma);
 }
 
