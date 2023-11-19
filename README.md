@@ -1,9 +1,9 @@
-# CIVL Development
+# Civl Development
 
 ## Boogie
 
-CIVL is implemented as part of the
+Civl is implemented as part of the
 [Boogie](https://github.com/boogie-org/boogie) verifier.
 
-A "desugared" CIVL file is generated using the flag
+A "desugared" Civl file is generated using the flag
 `/civlDesugaredFile:<file.bpl>`.
