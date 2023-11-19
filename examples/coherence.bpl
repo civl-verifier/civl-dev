@@ -240,7 +240,7 @@ yield procedure {:layer 2} cache_evict_resp(i: CacheId, ma: MemAddr, ticket: int
   }
 }
 
-atomic action {:layer 1,2} atomic_cache_evict_resp_begin(i: CacheId, ma: MemAddr, {:linear_in} sp: Lval SnoopPermission) returns (currRequest: CacheRequest)
+atomic action {:layer 2} atomic_cache_evict_resp_begin(i: CacheId, ma: MemAddr, {:linear_in} sp: Lval SnoopPermission) returns (currRequest: CacheRequest)
 modifies cache;
 {
   call currRequest := atomic_cache_evict_resp_begin#0(i, ma);
@@ -272,7 +272,7 @@ yield procedure {:layer 2} cache_snoop_exclusive_req(i: CacheId, ma: MemAddr, s:
   async call dir_snoop_exclusive_resp(i, ma, opt_value, dp, sp);
 }
 
-atomic action {:layer 1,2} atomic_cache_snoop_exclusive_req_begin(i: CacheId, ma: MemAddr, s: State, ticket: int, {:layer 1} {:linear} dp: Lset DirPermission) returns (opt_value: Option Value)
+atomic action {:layer 2} atomic_cache_snoop_exclusive_req_begin(i: CacheId, ma: MemAddr, s: State, ticket: int, {:layer 1} {:linear} dp: Lset DirPermission) returns (opt_value: Option Value)
 modifies cache;
 {
   call opt_value := atomic_cache_snoop_exclusive_req_begin#0(i, ma, s, ticket);
@@ -311,7 +311,7 @@ yield procedure {:layer 2} cache_snoop_shared_req(i: CacheId, ma: MemAddr, ticke
   async call dir_snoop_shared_resp(i, ma, dpOne, sp);
 }
 
-atomic action {:layer 1,2} atomic_cache_snoop_shared_req_begin(i: CacheId, ma: MemAddr, ticket: int, {:linear} dpOne: Lset DirPermission)
+atomic action {:layer 2} atomic_cache_snoop_shared_req_begin(i: CacheId, ma: MemAddr, ticket: int, {:linear} dpOne: Lset DirPermission)
 modifies cache;
 {
   call atomic_cache_snoop_shared_req_begin#0(i, ma, ticket);
