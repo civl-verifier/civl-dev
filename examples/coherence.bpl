@@ -209,18 +209,17 @@ yield procedure {:layer 2} cache_read_resp(i: CacheId, ma: MemAddr, v: Value, s:
 refines atomic_cache_read_resp;
 {
   call wait_front(i, ma, ticket);
-  call cache_read_resp_begin(i, ma, v, s, drp, sp);
+  call cache_read_resp_begin(i, ma, v, s, drp);
   call increment_front(i, ma);
 }
 
-atomic action {:layer 2} atomic_cache_read_resp_begin(i: CacheId, ma: MemAddr, v: Value, s: State, {:linear_in} drp: Lset DirRequestPermission, {:linear} sp: Lval SnoopPermission)
+atomic action {:layer 2} atomic_cache_read_resp_begin(i: CacheId, ma: MemAddr, v: Value, s: State, {:linear_in} drp: Lset DirRequestPermission)
 modifies cache, front, dirRequestPermissionsAtCache;
 {
-  assert Lset_Contains(drp, DirRequestPermission(i, Hash(ma)));
   call primitive_cache_read_resp_begin(i, ma, v, s);
   call Lset_Transfer(dirRequestPermissionsAtCache, drp);
 }
-yield procedure {:layer 1} cache_read_resp_begin(i: CacheId, ma: MemAddr, v: Value, s: State, {:layer 1} {:linear_in} drp: Lset DirRequestPermission, {:layer 1} {:linear} sp: Lval SnoopPermission)
+yield procedure {:layer 1} cache_read_resp_begin(i: CacheId, ma: MemAddr, v: Value, s: State, {:layer 1} {:linear_in} drp: Lset DirRequestPermission)
 refines atomic_cache_read_resp_begin;
 {
   call cache_read_resp_begin#0(i, ma, v, s);
@@ -257,7 +256,7 @@ yield procedure {:layer 2} cache_evict_resp(i: CacheId, ma: MemAddr, ticket: int
 {
   var currRequest: CacheRequest;
   call wait_front(i, ma, ticket);
-  call currRequest := cache_evict_resp_begin(i, ma, drp, sp);
+  call currRequest := cache_evict_resp_begin(i, ma);
   call increment_front(i, ma);
   if (currRequest is ReadShared) {
     async call dir_read_share_req(i, currRequest->ma, drp);
@@ -266,25 +265,13 @@ yield procedure {:layer 2} cache_evict_resp(i: CacheId, ma: MemAddr, ticket: int
   }
 }
 
-atomic action {:layer 2} atomic_cache_evict_resp_begin(i: CacheId, ma: MemAddr, drp: Lset DirRequestPermission, {:linear} sp: Lval SnoopPermission) returns (currRequest: CacheRequest)
+atomic action {:layer 1,2} atomic_cache_evict_resp_begin(i: CacheId, ma: MemAddr) returns (currRequest: CacheRequest)
 modifies cache;
 {
-  assert Lset_Contains(drp, DirRequestPermission(i, Hash(ma)));
   call currRequest := primitive_cache_evict_resp_begin(i, ma);
 }
-yield procedure {:layer 1} cache_evict_resp_begin(i: CacheId, ma: MemAddr, {:layer 1} drp: Lset DirRequestPermission, {:layer 1} {:linear} sp: Lval SnoopPermission) returns (currRequest: CacheRequest)
+yield procedure {:layer 0} cache_evict_resp_begin(i: CacheId, ma: MemAddr) returns (currRequest: CacheRequest);
 refines atomic_cache_evict_resp_begin;
-{
-  call currRequest := cache_evict_resp_begin#0(i, ma);
-}
-
-atomic action {:layer 1} atomic_cache_evict_resp_begin#0(i: CacheId, ma: MemAddr) returns (currRequest: CacheRequest)
-modifies cache;
-{
-  call currRequest := primitive_cache_evict_resp_begin(i, ma);
-}
-yield procedure {:layer 0} cache_evict_resp_begin#0(i: CacheId, ma: MemAddr) returns (currRequest: CacheRequest);
-refines atomic_cache_evict_resp_begin#0;
 
 action {:layer 1,2} primitive_cache_evict_resp_begin(i: CacheId, ma: MemAddr) returns (currRequest: CacheRequest)
 modifies cache;
@@ -313,28 +300,17 @@ refines atomic_cache_snoop_exclusive_req;
 {
   var opt_value: Option Value;
   call wait_front(i, ma, ticket);
-  call opt_value := cache_snoop_exclusive_req_begin(i, ma, s, dp);
+  call opt_value := cache_snoop_exclusive_req_begin(i, ma, s);
   async call dir_snoop_exclusive_resp(i, ma, opt_value, dp, sp);
 }
 
-atomic action {:layer 2} atomic_cache_snoop_exclusive_req_begin(i: CacheId, ma: MemAddr, s: State, {:linear} dp: Lset DirPermission) returns (opt_value: Option Value)
+atomic action {:layer 1,2} atomic_cache_snoop_exclusive_req_begin(i: CacheId, ma: MemAddr, s: State) returns (opt_value: Option Value)
 modifies cache;
 {
   call opt_value := primitive_cache_snoop_exclusive_req_begin(i, ma, s);
 }
-yield procedure {:layer 1} cache_snoop_exclusive_req_begin(i: CacheId, ma: MemAddr, s: State, {:layer 1} {:linear} dp: Lset DirPermission) returns (opt_value: Option Value)
+yield procedure {:layer 0} cache_snoop_exclusive_req_begin(i: CacheId, ma: MemAddr, s: State) returns (opt_value: Option Value);
 refines atomic_cache_snoop_exclusive_req_begin;
-{
-  call opt_value := cache_snoop_exclusive_req_begin#0(i, ma, s);
-}
-
-atomic action {:layer 1} atomic_cache_snoop_exclusive_req_begin#0(i: CacheId, ma: MemAddr, s: State) returns (opt_value: Option Value)
-modifies cache;
-{
-  call opt_value := primitive_cache_snoop_exclusive_req_begin(i, ma, s);
-}
-yield procedure {:layer 0} cache_snoop_exclusive_req_begin#0(i: CacheId, ma: MemAddr, s: State) returns (opt_value: Option Value);
-refines atomic_cache_snoop_exclusive_req_begin#0;
 
 action {:layer 1,3} primitive_cache_snoop_exclusive_req_begin(i: CacheId, ma: MemAddr, s: State) returns (opt_value: Option Value)
 modifies cache;
@@ -368,28 +344,17 @@ yield procedure {:layer 2} cache_snoop_shared_req(i: CacheId, ma: MemAddr, ticke
 refines atomic_cache_snoop_shared_req;
 {
   call wait_front(i, ma, ticket);
-  call cache_snoop_shared_req_begin(i, ma, dpOne);
+  call cache_snoop_shared_req_begin(i, ma);
   async call dir_snoop_shared_resp(i, ma, dpOne, sp);
 }
 
-atomic action {:layer 2} atomic_cache_snoop_shared_req_begin(i: CacheId, ma: MemAddr, {:linear} dpOne: Lset DirPermission)
+atomic action {:layer 1,2} atomic_cache_snoop_shared_req_begin(i: CacheId, ma: MemAddr)
 modifies cache;
 {
   call primitive_cache_snoop_shared_req_begin(i, ma);
 }
-yield procedure {:layer 1} cache_snoop_shared_req_begin(i: CacheId, ma: MemAddr, {:layer 1} {:linear} dpOne: Lset DirPermission)
+yield procedure {:layer 0} cache_snoop_shared_req_begin(i: CacheId, ma: MemAddr);
 refines atomic_cache_snoop_shared_req_begin;
-{
-  call cache_snoop_shared_req_begin#0(i, ma);
-}
-
-atomic action {:layer 1} atomic_cache_snoop_shared_req_begin#0(i: CacheId, ma: MemAddr)
-modifies cache;
-{
-  call primitive_cache_snoop_shared_req_begin(i, ma);
-}
-yield procedure {:layer 0} cache_snoop_shared_req_begin#0(i: CacheId, ma: MemAddr);
-refines atomic_cache_snoop_shared_req_begin#0;
 
 action {:layer 1,3} primitive_cache_snoop_shared_req_begin(i: CacheId, ma: MemAddr)
 modifies cache;
