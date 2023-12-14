@@ -430,7 +430,7 @@ yield procedure {:layer 2} dir_read_own_req(i: CacheId, ma: MemAddr, {:layer 1,2
 both action {:layer 2} atomic_get_victim(ma: MemAddr, victims: Set CacheId, {:layer 1} {:linear_in} dp: Lset DirPermission) 
 returns (victim: CacheId, {:layer 1} dpOne: Lset DirPermission, {:layer 1} dp': Lset DirPermission)
 {
-  victim := Set_Choose(victims);
+  victim := Choice(victims->val);
   dp' := dp;
   call dpOne := Lset_Get(dp', MapOne(DirPermission(victim, ma)));
 }
@@ -438,7 +438,7 @@ yield procedure {:layer 1} get_victim(ma: MemAddr, victims: Set CacheId, {:layer
 returns (victim: CacheId, {:layer 1} dpOne: Lset DirPermission, {:layer 1} dp': Lset DirPermission) 
 refines atomic_get_victim;
 {
-  victim := Set_Choose(victims);
+  victim := Choice(victims->val);
   dp' := dp;
   call {:layer 1} dpOne := Lset_Get(dp', MapOne(DirPermission(victim, ma)));
 }
@@ -616,7 +616,7 @@ pure action dir_req_move_permissions(
     call drp' := Lset_Empty();
   }
   if (dirRequest is Own && dirState is Sharers && dirState->iset != Set_Empty()) {
-    assume {:add_to_pool "DirPermission", DirPermission(Set_Choose(dirState->iset), ma)} true;
+    assume {:add_to_pool "DirPermission", DirPermission(Choice(dirState->iset->val), ma)} true;
     call dp := Lset_Get(dirPermissions', (lambda x: DirPermission :: x->ma == ma && Set_Contains(dirState->iset, x->i)));
   } else {
     call dp := Lset_Get(dirPermissions', WholeDirPermission(ma)->dom);
