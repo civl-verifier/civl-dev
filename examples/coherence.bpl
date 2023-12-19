@@ -12,11 +12,15 @@ datatype State {
 type CacheAddr;
 
 datatype CacheRequest {
-  EvictCache(),
+  EvictCache(ma: MemAddr),
   ReadShared(ma: MemAddr),
   ReadOwn(ma: MemAddr),
-  Write(ma: MemAddr, value: Value),
   NoCacheRequest()
+}
+
+datatype Result {
+  Ok(),
+  Fail()
 }
 
 datatype CacheLine {
@@ -76,123 +80,200 @@ var {:layer 1,3} dirPermissions: Lset DirPermission;
 
 
 // at cache
-yield procedure {:layer 2} cache_read_share_req(i: CacheId, ma: MemAddr) returns (result: Option Value)
-{
-  var line: CacheLine;
-  var {:layer 1,2} drp: Lset DirRequestPermission;
-  call result, line, drp := cache_req_begin(i, ReadShared(ma));
-  if (result is Some) {
-    return;
-  }
-  if (line->currRequest is NoCacheRequest) {
-    // cache[i][Hash(ma)]->currRequest was set to this request
-    if (line->state == Invalid()) {
-      async call dir_read_share_req(i, ma, drp);
-    } else if (line->state == Modified()) {
-      async call dir_evict_req(i, line->ma, Some(line->value), drp);
-    } else {
-      async call dir_evict_req(i, line->ma, None(), drp);
-    }
-  }
-}
-
-yield procedure {:layer 2} cache_read_own_req(i: CacheId, ma: MemAddr) returns (result: Option Value)
-{
-  var line: CacheLine;
-  var {:layer 1,2} drp: Lset DirRequestPermission;
-  call result, line, drp := cache_req_begin(i, ReadOwn(ma));
-  if (result is Some) {
-    return;
-  }
-  if (line->currRequest is NoCacheRequest) {
-    // cache[i][Hash(ma)]->currRequest was set to this request
-    if (line->state == Invalid() || line->ma == ma) {
-      async call dir_read_own_req(i, ma, drp);
-    } else if (line->state == Modified()) {
-      async call dir_evict_req(i, line->ma, Some(line->value), drp);
-    } else {
-      async call dir_evict_req(i, line->ma, None(), drp);
-    }
-  }
-}
-
-yield procedure {:layer 2} cache_write_req(i: CacheId, ma: MemAddr, v: Value) returns (result: Option Value)
-{
-  var line: CacheLine;
-  var {:layer 1,2} drp: Lset DirRequestPermission;
-  result := None();
-  call result, line, drp := cache_req_begin(i, Write(ma, v));
-  if (result is Some) {
-    return;
-  }
-  if (line->currRequest is NoCacheRequest) {
-    // cache[i][Hash(ma)]->currRequest was set to this request
-    if (line->state == Invalid() || line->ma == ma) {
-      async call dir_read_own_req(i, ma, drp);
-    } else if (line->state == Modified()) {
-      async call dir_evict_req(i, line->ma, Some(line->value), drp);
-    } else {
-      async call dir_evict_req(i, line->ma, None(), drp);
-    }
-  }
-}
-
-atomic action {:layer 2} atomic_cache_req_begin(i: CacheId, currRequest: CacheRequest) returns (result: Option Value, line: CacheLine, drp: Lset DirRequestPermission)
-modifies cache, dirRequestPermissionsAtCache;
-{
-  call result, line := primitive_cache_req_begin(i, currRequest);
-  if (result is None && line->currRequest is NoCacheRequest) {
-    call drp := Lset_Get(dirRequestPermissionsAtCache, MapOne(DirRequestPermission(i, Hash(currRequest->ma))));
-  } else {
-    call drp := Lset_Empty();
-  }
-}
-yield procedure {:layer 1} cache_req_begin(i: CacheId, currRequest: CacheRequest) returns (result: Option Value, line: CacheLine, {:layer 1} drp: Lset DirRequestPermission)
-refines atomic_cache_req_begin;
-{
-  call result, line := cache_req_begin#0(i, currRequest);
-  if (result is None && line->currRequest is NoCacheRequest) {
-    call {:layer 1} drp := Lset_Get(dirRequestPermissionsAtCache, MapOne(DirRequestPermission(i, Hash(currRequest->ma))));
-  } else {
-    call {:layer 1} drp := Lset_Empty();
-  }
-}
-
-atomic action {:layer 1} atomic_cache_req_begin#0(i: CacheId, currRequest: CacheRequest) returns (result: Option Value, line: CacheLine)
-modifies cache;
-{
-  call result, line := primitive_cache_req_begin(i, currRequest);
-}
-yield procedure {:layer 0} cache_req_begin#0(i: CacheId, currRequest: CacheRequest) returns (result: Option Value, line: CacheLine);
-refines atomic_cache_req_begin#0;
-
-action {:layer 1,2} primitive_cache_req_begin(i: CacheId, currRequest: CacheRequest) returns (result: Option Value, line: CacheLine)
+atomic action {:layer 1,2} atomic_cache_read(i: CacheId, ma: MemAddr) returns (result: Option Value)
 modifies cache;
 {
   var ca: CacheAddr;
-  var ma: MemAddr;
-  assert !(currRequest is NoCacheRequest);
-  ma := currRequest->ma;
+  var line: CacheLine;
   ca := Hash(ma);
   line := cache[i][ca];
   result := None();
-  assert line->state == Invalid() || Hash(line->ma) == ca;
-  if (currRequest is ReadShared && line->state != Invalid() && line->ma == ma) {
+  if (line->state != Invalid() && line->ma == ma) {
     result := Some(line->value);
-    return;
   }
-  if (currRequest is ReadOwn && (line->state == Exclusive() || line->state == Modified()) && line->ma == ma) {
-    result := Some(line->value);
-    return;
-  }
-  if (currRequest is Write && (line->state == Exclusive() || line->state == Modified()) && line->ma == ma) {
+}
+yield procedure {:layer 0} cache_read(i: CacheId, ma: MemAddr) returns (result: Option Value);
+refines atomic_cache_read;
+
+atomic action {:layer 1,2} atomic_cache_write(i: CacheId, ma: MemAddr, v: Value) returns (result: Result)
+modifies cache;
+{
+  var ca: CacheAddr;
+  var line: CacheLine;
+  ca := Hash(ma);
+  line := cache[i][ca];
+  result := Fail();
+  if (line->state != Invalid() && line->state != Shared() && line->ma == ma) {
+    cache[i][ca]->value := v;
     cache[i][ca]->state := Modified();
-    cache[i][ca]->value := currRequest->value;
-    result := Some(currRequest->value);
-    return;
+    result := Ok();
   }
+}
+yield procedure {:layer 0} cache_write(i: CacheId, ma: MemAddr, v: Value) returns (result: Result);
+refines atomic_cache_write;
+
+yield procedure {:layer 2} cache_evict_req(i: CacheId, ca: CacheAddr) returns (result: Result)
+{
+  var line: CacheLine;
+  var {:layer 1,2} drp: Lset DirRequestPermission;
+  call result, line, drp := cache_evict_req#1(i, ca);
+  if (line->state != Invalid()) {
+    if (line->currRequest == NoCacheRequest()) {
+      async call dir_evict_req(i, line->ma, if line->state is Modified then Some(line->value) else None(), drp);
+    }
+  }
+}
+
+atomic action {:layer 2} atomic_cache_evict_req#1(i: CacheId, ca: CacheAddr)
+returns (result: Result, line: CacheLine, drp: Lset DirRequestPermission)
+modifies cache, dirRequestPermissionsAtCache;
+{
+  call result, line := atomic_cache_evict_req#0(i, ca);
+  call drp := Lset_Empty();
+  if (line->state != Invalid()) {
+    if (line->currRequest == NoCacheRequest()) {
+      call drp := Lset_Get(dirRequestPermissionsAtCache, MapOne(DirRequestPermission(i, ca)));
+    }
+  }
+}
+yield procedure {:layer 1} cache_evict_req#1(i: CacheId, ca: CacheAddr)
+returns (result: Result, line: CacheLine, {:layer 1} drp: Lset DirRequestPermission)
+refines atomic_cache_evict_req#1;
+{
+  call result, line := cache_evict_req#0(i, ca);
+  call {:layer 1} drp := Lset_Empty();
+  if (line->state != Invalid()) {
+    if (line->currRequest == NoCacheRequest()) {
+      call {:layer 1} drp := Lset_Get(dirRequestPermissionsAtCache, MapOne(DirRequestPermission(i, ca)));
+    }
+  }
+}
+
+atomic action {:layer 1,2} atomic_cache_evict_req#0(i: CacheId, ca: CacheAddr) returns (result: Result, line: CacheLine)
+modifies cache;
+{
+  line := cache[i][ca];
+  if (line->state != Invalid()) {
+    call result := acquire_cache_lock(i, ca, EvictCache(line->ma));
+  } else {
+    result := Ok();
+  }
+}
+yield procedure {:layer 0} cache_evict_req#0(i: CacheId, ca: CacheAddr) returns (result: Result, line: CacheLine);
+refines atomic_cache_evict_req#0;
+
+yield procedure {:layer 2} cache_read_share_req(i: CacheId, ma: MemAddr) returns (result: Result)
+{
+  var line: CacheLine;
+  var {:layer 1,2} drp: Lset DirRequestPermission;
+  call result, line, drp := cache_read_share_req#1(i, ma);
+  if (line->state == Invalid()) {
+    if (line->currRequest == NoCacheRequest()) {
+      async call dir_read_share_req(i, ma, drp);
+    }
+  }
+}
+
+atomic action {:layer 2} atomic_cache_read_share_req#1(i: CacheId, ma: MemAddr)
+returns (result: Result, line: CacheLine, drp: Lset DirRequestPermission)
+modifies cache, dirRequestPermissionsAtCache;
+{
+  call result, line := atomic_cache_read_share_req#0(i, ma);
+  call drp := Lset_Empty();
+  if (line->state == Invalid()) {
+    if (line->currRequest == NoCacheRequest()) {
+      call drp := Lset_Get(dirRequestPermissionsAtCache, MapOne(DirRequestPermission(i, Hash(ma))));
+    }
+  }
+}
+yield procedure {:layer 1} cache_read_share_req#1(i: CacheId, ma: MemAddr)
+returns (result: Result, line: CacheLine, {:layer 1} drp: Lset DirRequestPermission)
+refines atomic_cache_read_share_req#1;
+{
+  call result, line := cache_read_share_req#0(i, ma);
+  call {:layer 1} drp := Lset_Empty();
+  if (line->state == Invalid()) {
+    if (line->currRequest == NoCacheRequest()) {
+      call {:layer 1} drp := Lset_Get(dirRequestPermissionsAtCache, MapOne(DirRequestPermission(i, Hash(ma))));
+    }
+  }
+}
+
+atomic action {:layer 1,2} atomic_cache_read_share_req#0(i: CacheId, ma: MemAddr) returns (result: Result, line: CacheLine)
+modifies cache;
+{
+  var ca: CacheAddr;
+  ca := Hash(ma);
+  line := cache[i][ca];
+  if (line->state == Invalid()) {
+    call result := acquire_cache_lock(i, ca, ReadShared(ma));
+  } else {
+    result := if line->ma == ma then Ok() else Fail();
+  }
+}
+yield procedure {:layer 0} cache_read_share_req#0(i: CacheId, ma: MemAddr) returns (result: Result, line: CacheLine);
+refines atomic_cache_read_share_req#0;
+
+yield procedure {:layer 2} cache_read_own_req(i: CacheId, ma: MemAddr) returns (result: Result)
+{
+  var line: CacheLine;
+  var {:layer 1,2} drp: Lset DirRequestPermission;
+  call result, line, drp := cache_read_own_req#1(i, ma);
+  if (line->state == Invalid() || (line->ma == ma && line->state == Shared())) {
+    if (line->currRequest == NoCacheRequest()) {
+      async call dir_read_own_req(i, ma, drp);
+    }
+  }
+}
+
+atomic action {:layer 2} atomic_cache_read_own_req#1(i: CacheId, ma: MemAddr)
+returns (result: Result, line: CacheLine, drp: Lset DirRequestPermission)
+modifies cache, dirRequestPermissionsAtCache;
+{
+  call result, line := atomic_cache_read_own_req#0(i, ma);
+  call drp := Lset_Empty();
+  if (line->state == Invalid() || (line->ma == ma && line->state == Shared())) {
+    if (line->currRequest == NoCacheRequest()) {
+      call drp := Lset_Get(dirRequestPermissionsAtCache, MapOne(DirRequestPermission(i, Hash(ma))));
+    }
+  }
+}
+yield procedure {:layer 1} cache_read_own_req#1(i: CacheId, ma: MemAddr)
+returns (result: Result, line: CacheLine, {:layer 1} drp: Lset DirRequestPermission)
+refines atomic_cache_read_own_req#1;
+{
+  call result, line := cache_read_own_req#0(i, ma);
+  call {:layer 1} drp := Lset_Empty();
+  if (line->state == Invalid() || (line->ma == ma && line->state == Shared())) {
+    if (line->currRequest == NoCacheRequest()) {
+      call {:layer 1} drp := Lset_Get(dirRequestPermissionsAtCache, MapOne(DirRequestPermission(i, Hash(ma))));
+    }
+  }
+}
+
+atomic action {:layer 1,2} atomic_cache_read_own_req#0(i: CacheId, ma: MemAddr) returns (result: Result, line: CacheLine)
+modifies cache;
+{
+  var ca: CacheAddr;
+  ca := Hash(ma);
+  line := cache[i][ca];
+  if (line->state == Invalid() || (line->ma == ma && line->state == Shared())) {
+    call result := acquire_cache_lock(i, ca, ReadOwn(ma));
+  } else {
+    result := if line->ma == ma then Ok() else Fail();
+  }
+}
+yield procedure {:layer 0} cache_read_own_req#0(i: CacheId, ma: MemAddr) returns (result: Result, line: CacheLine);
+refines atomic_cache_read_own_req#0;
+
+action {:layer 1,2} acquire_cache_lock(i: CacheId, ca: CacheAddr, currRequest: CacheRequest) returns (result: Result)
+modifies cache;
+{
   if (cache[i][ca]->currRequest is NoCacheRequest) {
     cache[i][ca]->currRequest := currRequest;
+    result := Ok();
+  } else {
+    result := Fail();
   }
 }
 
@@ -249,7 +330,7 @@ modifies cache;
   assert line->state == Invalid() || (line->state == Shared() && line->ma == ma);
   if (currRequest is ReadShared) {
     assert s == Shared();
-  } else if (currRequest is ReadOwn || currRequest is Write) {
+  } else if (currRequest is ReadOwn) {
     assert s == Exclusive();
   } else {
     assert false;
