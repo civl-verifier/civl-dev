@@ -533,7 +533,7 @@ creates atomic_cache_snoop_exclusive_req, atomic_cache_read_resp;
     dir[ma]->currRequest := Share(i);
     ticket := back[dirState->i][ma];
     call Set_Put(dirRequestPermissionsAtDir, drp);
-    call dp := Set_Get(dirPermissions, WholeDirPermission(ma)->dom);
+    call dp := Set_Get(dirPermissions, WholeDirPermission(ma)->val);
     call sp := One_Get(snoopPermissions, SnoopPermission(dirState->i, ma, ticket));
     asyncCallCacheSnoopExclusive := atomic_cache_snoop_exclusive_req(dirState->i, ma, Shared(), ticket, dp, sp);
     call create_async(asyncCallCacheSnoopExclusive);
@@ -587,7 +587,7 @@ creates atomic_cache_snoop_exclusive_req, atomic_cache_snoop_shared_req, atomic_
     dir[ma]->currRequest := Own(i);
     ticket := back[dirState->i][ma];
     call Set_Put(dirRequestPermissionsAtDir, drp);
-    call dp := Set_Get(dirPermissions, WholeDirPermission(ma)->dom);
+    call dp := Set_Get(dirPermissions, WholeDirPermission(ma)->val);
     call sp := One_Get(snoopPermissions, SnoopPermission(dirState->i, ma, ticket));
     asyncCallCacheSnoopExclusive := atomic_cache_snoop_exclusive_req(dirState->i, ma, Invalid(), ticket, dp, sp);
     call create_async(asyncCallCacheSnoopExclusive);
@@ -642,15 +642,15 @@ refines atomic_dir_read_own_req;
     async call cache_read_resp(i, ma, value, if dirState->iset == Set_Empty() then Exclusive() else Shared(), ticket, drp', sp);
   } else {
     victims := dirState->iset;
-    call {:layer 2} oldSnoopPermissions := Copy(snoopPermissions->dom);
+    call {:layer 2} oldSnoopPermissions := Copy(snoopPermissions->val);
     while (victims != Set_Empty())
     invariant {:yields} {:layer 1} true;
     invariant {:layer 2} dp == Set((lambda x: DirPermission :: Set_Contains(victims, x->i) && x->ma == ma));
     invariant {:layer 2} Set_IsSubset(victims, dirState->iset);
-    invariant {:layer 2} snoopPermissions->dom == MapDiff(oldSnoopPermissions,
+    invariant {:layer 2} snoopPermissions->val == MapDiff(oldSnoopPermissions,
       (lambda x: SnoopPermission :: Set_Contains(Set_Difference(dirState->iset, victims), x->i) && x->ma == ma && x->ticket == back[x->i][x->ma]));
     invariant {:layer 2} IsSubset(
-      (lambda x: SnoopPermission :: Set_Contains(victims, x->i) && x->ma == ma && x->ticket == back[x->i][x->ma]), snoopPermissions->dom);
+      (lambda x: SnoopPermission :: Set_Contains(victims, x->i) && x->ma == ma && x->ticket == back[x->i][x->ma]), snoopPermissions->val);
     invariant {:layer 2} PAs == ToMultiset(
       (lambda x: atomic_cache_snoop_shared_req :: 
         Set_Contains(Set_Difference(dirState->iset, victims), x->i) && 
@@ -794,7 +794,7 @@ pure action dir_req_move_permissions(
     assume {:add_to_pool "DirPermission", DirPermission(Choice(dirState->iset->val), ma)} true;
     call dp := Set_Get(dirPermissions', (lambda x: DirPermission :: x->ma == ma && Set_Contains(dirState->iset, x->i)));
   } else {
-    call dp := Set_Get(dirPermissions', WholeDirPermission(ma)->dom);
+    call dp := Set_Get(dirPermissions', WholeDirPermission(ma)->val);
   }
 }
 
@@ -1002,7 +1002,7 @@ pure action dir_snoop_shared_resp_move_permissions(
   call One_Put(snoopPermissions', sp);
   if (dirInfo->state == Sharers(Set_Empty())) {
     call drp := Set_Get(dirRequestPermissionsAtDir', MapOne(DirRequestPermission(dirInfo->currRequest->i, Hash(ma))));
-    call dp := Set_Get(dirPermissions', WholeDirPermission(ma)->dom);
+    call dp := Set_Get(dirPermissions', WholeDirPermission(ma)->val);
   } else {
     call drp := Set_MakeEmpty();
     call dp := Set_MakeEmpty();
