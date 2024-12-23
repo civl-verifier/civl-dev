@@ -1,0 +1,52 @@
+Signatures
+----------
+
+X.sig.json
+    - list of relative paths to Boogie files
+    - import ../foo/Y with type argument (Y.sig.json must be present in ../foo)
+
+Signature Boogie files contain
+    - no layer annotations
+    - definitions of atomic actions
+    - declarations of global variables
+    - types
+    - function signatures and/or function bodies
+    - type parameters
+    - signatures of yield procedures including refines specfication
+
+The module verifier takes a path to X.sig.json and does the following:
+1. For each dependent module signature Y, instantiate everything except global variables
+and atomic actions with the type argument
+2. Verify the Boogie files comprising X.sig together with Boogie files of all dependent signatures.
+
+Implementations
+---------------
+
+X.impl.json
+    - list of relative paths to Boogie files
+    - layer N
+    - one implement ../foo/Y (Y.sig.json must be present in ../foo) declaration
+        - map from each global variable and atomic action in Y to introduction layer
+    - zero or more import ../bar/Z (Z.impl.json must be present in ../bar) declarations
+        - map from each global variable and atomic action in Z to hide layer
+
+Implementation Boogie files are ordinary Civl files
+
+The module verifier takes a path to X.impl.json and does the following
+(assumes that all implementations and signatures mentioned in X.impl.json have already been verified):
+1. Process "implement ../foo/Y" declaration as follows:
+    - Suppose the layer number in X.impl.json is N.  
+    - Parse in every Boogie file mentioned in Y.sig.json.
+    - Parse in every Boogie file mentioned in X.impl.json. 
+    - Check that the signature of yield procedures match up and that each yield
+    procedure disappears at N.
+    - Attach layer numbers to atomic actions and global variables using the layer numbers
+    mentioned in the map as lower layers and N+1 as the upper layer.
+2. Process each "import ../bar/Z" declaration as follows:
+    - Suppose the layer number mentioned in Z.impl.json is M.
+    - Parse in every file mentioned in Z.sig.json and attach layer numbers to yield procedures, atomic actions
+    and global variables as follows    
+        - The layer of each yield procedure is M.
+        - The upper layer of global variables and atomic actions is obtained from the map.
+        - The lower layer of each atomic action is M+1 and for each global variable is M.
+3. Verify all implementation files and all files created in 1 and 2 above together.
